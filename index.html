@@ -140,11 +140,14 @@
       <div id="magazinAdresa"></div>
       <div id="magazinDetalii"></div>
       <button class="btn btn-navigheaza" onclick="navigheaza()">NAVIGHEAZA</button>
-      <div class="rand2">
-        <button class="btn btn-livrat" onclick="livrat()">LIVRAT</button>
-        <button class="btn btn-nelivrat" onclick="nelivrat()">NU AM LIVRAT</button>
+      <div id="btnStandard">
+        <div class="rand2">
+          <button class="btn btn-livrat" onclick="livrat()">LIVRAT</button>
+          <button class="btn btn-nelivrat" onclick="nelivrat()">NU AM LIVRAT</button>
+        </div>
+        <button class="btn btn-problema" onclick="problema()">Problema / observatie</button>
       </div>
-      <button class="btn btn-problema" onclick="problema()">Problema / observatie</button>
+      <button class="btn btn-livrat ascuns" id="btnDepot" onclick="ajunsFirma()">AM AJUNS LA FIRMA</button>
     </div>
     <div id="lista"></div>
   </div>
@@ -337,8 +340,11 @@ function deseneaza() {
     }
     curent = stop ? stop.seq : null;
   }
+  var eDepot = (String(stop.store_code) === '999');
+  document.getElementById('btnStandard').classList.toggle('ascuns', eDepot);
+  document.getElementById('btnDepot').classList.toggle('ascuns', !eDepot);
   document.getElementById('etichetaCurenta').textContent =
-    'Magazin ' + stop.seq + ' din ' + stops.length;
+    eDepot ? 'Final de ruta' : 'Magazin ' + stop.seq + ' din ' + stops.length;
   document.getElementById('magazinNume').textContent = stop.store;
   document.getElementById('magazinAdresa').textContent = stop.location || '';
   document.getElementById('magazinDetalii').textContent =
@@ -376,6 +382,7 @@ function deseneazaFinal() {
   var stops = stareRuta.stops;
   var livrate = 0, nelivrate = 0;
   for (var i = 0; i < stops.length; i++) {
+    if (String(stops[i].store_code) === '999') continue;
     if (statusuri[stops[i].seq] === 'livrat') livrate++;
     if (statusuri[stops[i].seq] === 'nelivrat') nelivrate++;
   }
@@ -463,6 +470,15 @@ function problema() {
   var nota = prompt('Scrieti observatia:');
   if (!nota) return;
   trimiteEveniment('NOTE', stop, nota);
+}
+
+function ajunsFirma() {
+  var stop = gasesteStop(curent);
+  if (!stop) return;
+  statusuri[stop.seq] = 'livrat';
+  salveazaStare();
+  trimiteEveniment('ARRIVED_DEPOT', stop, '');
+  deseneaza();
 }
 
 function incheieRuta() {
