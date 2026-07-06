@@ -153,7 +153,7 @@
     <div class="card" style="text-align:center;">
       <div style="font-size:28px; font-weight:800; margin-bottom:8px;">Ruta terminata</div>
       <div id="rezumatFinal" style="font-size:17px; color:#44445a;"></div>
-      <button class="btn btn-start" onclick="incheieRuta()">INCHEIE ZIUA</button>
+      <button class="btn btn-start" id="btnIncheie" onclick="incheieRuta()">INCHEIE ZIUA</button>
     </div>
     <div id="listaFinal"></div>
   </div>
@@ -192,7 +192,13 @@ var sofer = '';
 var ultimaPozitie = null;  // { lat, lon, acc, t }
 var watchId = null;
 
-function cheieZi() { return 'tw_' + (stareRuta ? stareRuta.date : 'x') + '_' + ruta; }
+function versiunePub() {
+  return (stareRuta && stareRuta.published_at)
+    ? String(stareRuta.published_at).replace(/[^0-9]/g, '') : '0';
+}
+function cheieZi() {
+  return 'tw_' + (stareRuta ? stareRuta.date : 'x') + '_' + ruta + '_v' + versiunePub();
+}
 
 // ---------------- Pornire ----------------
 function init() {
@@ -253,7 +259,7 @@ function incarcaRuta() {
 
 // Trimite ROUTE_LOADED o singura data pe zi+ruta: dovada ca tableta a preluat traseul
 function confirmaPreluarea() {
-  var k = 'tw_loaded_' + stareRuta.date + '_' + ruta;
+  var k = 'tw_loaded_' + stareRuta.date + '_' + ruta + '_v' + versiunePub();
   try {
     if (localStorage.getItem(k)) return;
     localStorage.setItem(k, '1');
@@ -352,8 +358,12 @@ function deseneazaLista(idContainer, interactiv) {
     if (statusuri[s.seq] === 'livrat') { cls += ' livrat'; stare = '&#10004;'; }
     else if (statusuri[s.seq] === 'nelivrat') { cls += ' nelivrat'; stare = '&#10008;'; }
     else if (s.seq === curent) { cls += ' curenta'; }
-    html += '<div class="' + cls + '"' +
-      (interactiv && !statusuri[s.seq] ? ' onclick="alegeStop(' + s.seq + ')"' : '') + '>' +
+    var click = '';
+    if (interactiv) {
+      click = statusuri[s.seq] ? ' onclick="anuleazaStatus(' + s.seq + ')"'
+                               : ' onclick="alegeStop(' + s.seq + ')"';
+    }
+    html += '<div class="' + cls + '"' + click + '>' +
       '<div class="seq">' + s.seq + '</div>' +
       '<div class="info"><div class="nume">' + escapeHtml(s.store) + '</div>' +
       '<div class="adresa">' + escapeHtml(s.location || '') + '</div></div>' +
@@ -370,8 +380,10 @@ function deseneazaFinal() {
     if (statusuri[stops[i].seq] === 'nelivrat') nelivrate++;
   }
   document.getElementById('rezumatFinal').textContent =
-    'Livrate: ' + livrate + '   ·   Nelivrate: ' + nelivrate;
-  deseneazaLista('listaFinal', false);
+    'Livrate: ' + livrate + '   ·   Nelivrate: ' + nelivrate +
+    (incheiat ? '   ·   Zi incheiata' : '');
+  document.getElementById('btnIncheie').style.display = incheiat ? 'none' : 'block';
+  deseneazaLista('listaFinal', true);
 }
 
 function gasesteStop(seq) {
@@ -400,6 +412,18 @@ function incepeRuta() {
 
 function alegeStop(seq) {
   curent = seq;
+  deseneaza();
+}
+
+function anuleazaStatus(seq) {
+  var stop = gasesteStop(seq);
+  if (!stop) return;
+  if (!confirm('Anulezi statusul pentru ' + stop.store + '?')) return;
+  delete statusuri[seq];
+  if (incheiat) incheiat = false;
+  curent = seq;
+  salveazaStare();
+  trimiteEveniment('CANCEL_STATUS', stop, '');
   deseneaza();
 }
 
