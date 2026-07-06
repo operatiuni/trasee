@@ -180,6 +180,7 @@ function paramUrl(nume) {
 }
 var tableta = paramUrl('tableta');
 var rutaParam = paramUrl('ruta');
+var dataParam = paramUrl('data');   // doar pentru teste: forteaza o anumita zi
 var ruta = '';               // numele traseului real, vine de la server
 
 var stareRuta = null;      // raspunsul serverului: { date, stops: [...] }
@@ -220,6 +221,7 @@ function incarcaRuta() {
     url = SERVER_URL + '?action=get_route&ruta=' + encodeURIComponent(rutaParam) +
           '&key=' + encodeURIComponent(API_KEY);
   }
+  if (dataParam) { url = url + '&data=' + encodeURIComponent(dataParam); }
   fetch(url).then(function (r) { return r.json(); }).then(function (d) {
     if (!d.ok) { arataMesaj('Eroare server', d.error || ''); return; }
     stareRuta = d;
