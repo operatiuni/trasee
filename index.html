@@ -571,7 +571,34 @@ function porneasteGps() {
       lat: p.coords.latitude, lon: p.coords.longitude,
       acc: Math.round(p.coords.accuracy), t: Date.now()
     };
+    verificaSosireDepozit();
   }, function () {}, { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 });
+}
+
+// Detectie automata a sosirii la depozit (fara apasare de buton)
+var DEPOT_LAT = 44.347042, DEPOT_LON = 26.083327, DEPOT_RAZA = 200;
+function verificaSosireDepozit() {
+  if (!pornit || incheiat || !stareRuta || !ultimaPozitie) return;
+  // gaseste oprirea depozit (999)
+  var depot = null;
+  for (var i = 0; i < stareRuta.stops.length; i++) {
+    if (String(stareRuta.stops[i].store_code) === '999') { depot = stareRuta.stops[i]; break; }
+  }
+  if (!depot || statusuri[depot.seq]) return;   // nu exista sau deja marcat
+  var d = distMetri(ultimaPozitie.lat, ultimaPozitie.lon, DEPOT_LAT, DEPOT_LON);
+  if (d <= DEPOT_RAZA) {
+    statusuri[depot.seq] = 'livrat';
+    salveazaStare();
+    trimiteEveniment('ARRIVED_DEPOT', depot, 'automat');
+    deseneaza();
+  }
+}
+
+function distMetri(la1, lo1, la2, lo2) {
+  var R = 6371000, dLa = (la2 - la1) * Math.PI / 180, dLo = (lo2 - lo1) * Math.PI / 180;
+  var a = Math.sin(dLa/2)*Math.sin(dLa/2) +
+          Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dLo/2)*Math.sin(dLo/2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
 // ---------------- Evenimente + coada offline ----------------
