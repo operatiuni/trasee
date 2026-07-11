@@ -116,6 +116,11 @@
 </div>
 
 <div id="banner" class="ascuns"></div>
+<div id="bannerUpdate" class="ascuns" onclick="incarcaActualizarea()"
+     style="background:#1560bd;color:#fff;text-align:center;padding:12px;
+     font-size:16px;font-weight:700;flex-shrink:0;cursor:pointer;">
+  Traseu actualizat de dispecer &mdash; apasa pentru a incarca (progresul se pastreaza)
+</div>
 
 <div id="continut">
 
@@ -194,6 +199,8 @@ var incheiat = false;
 var sofer = '';
 var ultimaPozitie = null;  // { lat, lon, acc, t }
 var watchId = null;
+var versiuneCurenta = null;   // published_at cu care ruleaza acum tableta
+var verificareInterval = null;
 
 function versiunePub() {
   return (stareRuta && stareRuta.published_at)
@@ -251,9 +258,11 @@ function incarcaRuta() {
       setTimeout(incarcaRuta, 300000);
       return;
     }
+    versiuneCurenta = stareRuta.published_at || '';
     restaureazaStare();
     confirmaPreluarea();
     deseneaza();
+    pornemVerificareaVersiunii();
   }).catch(function () {
     arataMesaj('Nu am putut lua ruta', 'Verificati semnalul. Se reincearca automat.');
     setTimeout(incarcaRuta, 60000);
@@ -268,6 +277,72 @@ function confirmaPreluarea() {
     localStorage.setItem(k, '1');
   } catch (e) {}
   trimiteEveniment('ROUTE_LOADED', null, stareRuta.stops.length + ' opriri');
+}
+
+// ---------------- Verificare versiune noua (auto-refresh inteligent) --------
+function pornemVerificareaVersiunii() {
+  if (verificareInterval) return;
+  verificareInterval = setInterval(verificaVersiune, 60000);
+}
+
+function verificaVersiune() {
+  if (!tableta || !stareRuta) return;
+  var url = SERVER_URL + '?action=get_tablet_route&tableta=' + encodeURIComponent(tableta) +
+            '&key=' + encodeURIComponent(API_KEY);
+  if (dataParam) { url = url + '&data=' + encodeURIComponent(dataParam); }
+  fetch(url).then(function (r) { return r.json(); }).then(function (d) {
+    if (!d.ok || !d.route) return;
+    var noua = d.published_at || '';
+    if (noua && noua !== versiuneCurenta) {
+      rutaNoua = d;                       // o retinem pana o aplicam
+      if (!pornit) {
+        // Ruta neinceputa: reincarca automat, silentios
+        incarcaActualizarea();
+      } else {
+        // Ruta in desfasurare: doar anunta, soferul decide cand
+        document.getElementById('bannerUpdate').classList.remove('ascuns');
+      }
+    }
+  }).catch(function () {});
+}
+
+var rutaNoua = null;
+
+// Incarca ruta noua PASTRAND statusurile magazinelor deja livrate (dupa store_code)
+function incarcaActualizarea() {
+  if (!rutaNoua) { incarcaRuta(); return; }
+  // Statusurile vechi, mapate pe store_code
+  var vechiPeCod = {};
+  if (stareRuta && stareRuta.stops) {
+    for (var i = 0; i < stareRuta.stops.length; i++) {
+      var sc = String(stareRuta.stops[i].store_code);
+      if (statusuri[stareRuta.stops[i].seq]) {
+        vechiPeCod[sc] = statusuri[stareRuta.stops[i].seq];
+      }
+    }
+  }
+  // Trecem la ruta noua
+  stareRuta = rutaNoua;
+  rutaNoua = null;
+  ruta = stareRuta.route || ruta;
+  versiuneCurenta = stareRuta.published_at || '';
+  document.getElementById('antetData').textContent = stareRuta.date;
+  if (tableta) {
+    document.getElementById('antetRuta').textContent =
+      'Tableta ' + tableta + (ruta ? ' \u00b7 ' + ruta : '');
+  }
+  // Reconstruim statusurile pe noile seq, dupa store_code
+  statusuri = {};
+  for (var j = 0; j < stareRuta.stops.length; j++) {
+    var cod = String(stareRuta.stops[j].store_code);
+    if (vechiPeCod[cod]) statusuri[stareRuta.stops[j].seq] = vechiPeCod[cod];
+  }
+  incheiat = false;
+  curent = null;
+  salveazaStare();
+  document.getElementById('bannerUpdate').classList.add('ascuns');
+  confirmaPreluarea();
+  deseneaza();
 }
 
 // ---------------- Stare locala (rezista la restart) ----------------
