@@ -253,7 +253,7 @@
   <span id="stGps">GPS: -</span>
   <span id="stNet">Net: -</span>
   <span id="stCoada"></span>
-  <span class="ver">v3.1</span>
+  <span class="ver">v3.2</span>
 </div>
 
 <!-- fereastra generala: confirmari si texte -->
@@ -347,6 +347,7 @@ function incarcaRuta() {
   fetch(url).then(function (r) { return r.json(); }).then(function (d) {
     if (!d.ok) { arataMesaj('Eroare server', d.error || ''); return; }
     stareRuta = d;
+    completeazaDepozit(stareRuta);
     ruta = d.route || rutaParam || '';
     document.getElementById('antetData').textContent = d.date;
     if (tableta) {
@@ -426,6 +427,7 @@ function incarcaActualizarea() {
     }
   }
   stareRuta = rutaNoua;
+  completeazaDepozit(stareRuta);
   rutaNoua = null;
   ruta = stareRuta.route || ruta;
   versiuneCurenta = stareRuta.published_at || '';
@@ -489,6 +491,14 @@ function comuta(id) {
 }
 
 function eDepot(s) { return String(s.store_code) === '999'; }
+// depozitul vine uneori de la server fara coordonate: folosim coordonatele bazei din Jilava
+function completeazaDepozit(d) {
+  if (!d || !d.stops) return;
+  for (var i = 0; i < d.stops.length; i++) {
+    var s = d.stops[i];
+    if (eDepot(s) && (!s.lat || !s.lon)) { s.lat = DEPOT_LAT; s.lon = DEPOT_LON; }
+  }
+}
 // serverul trimite uneori codul in campul 'store' si numele in 'location'
 function numeMag(s) {
   return (String(s.store) === String(s.store_code) && s.location) ? s.location : s.store;
@@ -887,7 +897,7 @@ function deseneazaLinie() {
   linieTraseu.bringToBack();
   if (!traseuIncadrat) totTraseul();
   // 2) drumul real, din cache sau de la OpenRouteService
-  var cheie = 'tw_geom_' + (stareRuta.date || '') + '_' + ruta + '_v' + versiunePub();
+  var cheie = 'tw_geom2_' + (stareRuta.date || '') + '_' + ruta + '_v' + versiunePub();
   var salvat = null;
   try { salvat = JSON.parse(localStorage.getItem(cheie) || 'null'); } catch (e) {}
   if (salvat && salvat.coords) { aplicaGeometrie(salvat); return; }
@@ -924,7 +934,7 @@ function curataGeometriiVechi(pastreaza) {
     var deSters = [];
     for (var i = 0; i < localStorage.length; i++) {
       var k = localStorage.key(i);
-      if (k && k.indexOf('tw_geom_') === 0 && k !== pastreaza) deSters.push(k);
+      if (k && k.indexOf('tw_geom') === 0 && k !== pastreaza) deSters.push(k);
     }
     for (var j = 0; j < deSters.length; j++) localStorage.removeItem(deSters[j]);
   } catch (e) {}
