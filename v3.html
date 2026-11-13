@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1a1a2e">
+<title>Ruta zilei</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  /* ===== v3.0 - harta cu tot traseul + layout tableta/telefon ===== */
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    font-family: system-ui, Roboto, "Segoe UI", Arial, sans-serif;
+    background: #f2f2f5; color: #1a1a2e;
+    display: flex; flex-direction: column; height: 100%; height: 100dvh; overflow: hidden;
+  }
+  button, a { touch-action: manipulation; }
+
+  #antet {
+    background: #1a1a2e; color: #fff; padding: 10px 14px;
+    display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-shrink: 0;
+  }
+  #antet .titlu { font-size: 19px; font-weight: 700; }
+  #antet .sub { font-size: 13px; color: #b8b8cc; margin-top: 2px; }
+  #antet .dreapta { display: flex; align-items: center; gap: 12px; }
+  #antet .progres { font-size: 24px; font-weight: 700; text-align: right; }
+  #antet .progres small { display: block; font-size: 12px; font-weight: 400; color: #b8b8cc; }
+  #btnHartaComuta {
+    background: #2e2e4a; color: #fff; border: 1px solid #4a4a6a; border-radius: 10px;
+    font-size: 14px; font-weight: 700; padding: 10px 12px; min-height: 44px;
+  }
+
+  /* ---- zona principala: harta + panou ---- */
+  #principal { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  #hartaBox { position: relative; height: 38vh; height: 38dvh; min-height: 230px; flex-shrink: 0; background: #dfe6e2; }
+  #hartaBox.restransa { display: none; }
+  #harta { position: absolute; inset: 0; }
+  #continut { flex: 1; overflow-y: auto; padding: 12px; min-height: 0; }
+
+  /* tableta pe orizontala: harta stanga, panou dreapta */
+  @media (min-width: 900px) and (orientation: landscape) {
+    #principal { flex-direction: row; }
+    #hartaBox { height: auto; flex: 1 1 56%; min-height: 0; }
+    #hartaBox.restransa { display: block; }
+    #continut { flex: 1 1 44%; max-width: 560px; border-left: 1px solid #d4d4dd; }
+    #btnHartaComuta { display: none; }
+  }
+
+  /* butoane peste harta */
+  #hartaBara {
+    position: absolute; top: 8px; right: 8px; z-index: 500;
+    display: flex; flex-direction: column; gap: 6px; align-items: stretch;
+  }
+  #hartaBara button {
+    background: #fff; color: #1a1a2e; border: 1px solid #c4c4d0; border-radius: 10px;
+    font-size: 14px; font-weight: 700; padding: 9px 12px; min-height: 44px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.18);
+  }
+  #hartaBara .principal { background: #1560bd; color: #fff; border-color: #1560bd; }
+  #hartaJos {
+    position: absolute; left: 8px; bottom: 18px; z-index: 500; max-width: 75%;
+    background: rgba(255,255,255,.93); border-radius: 8px; padding: 5px 9px;
+    font-size: 12px; color: #44445a; pointer-events: none;
+  }
+  #hartaInfo { font-weight: 700; color: #1a1a2e; margin-bottom: 2px; }
+  .punct { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin: 0 3px 0 6px; vertical-align: middle; }
+  .punct:first-child { margin-left: 0; }
+
+  /* pinuri numerotate */
+  .pin {
+    width: 34px; height: 34px; border: 2px solid #fff; border-radius: 50%;
+    background: #1560bd; color: #fff; text-align: center; line-height: 30px;
+    font-size: 14px; font-weight: 800; box-shadow: 0 1px 5px rgba(0,0,0,.35);
+  }
+  .pin.curenta { background: #cf6b12; width: 40px; height: 40px; line-height: 36px; font-size: 16px; }
+  .pin.livrat { background: #1d7a46; }
+  .pin.nelivrat { background: #b3261e; }
+  .pin.depot { background: #1a1a2e; }
+  .leaflet-popup-content { font-size: 15px; line-height: 1.4; margin: 12px 14px; }
+  .leaflet-popup-content h3 { font-size: 17px; margin-bottom: 4px; }
+  .leaflet-popup-content .pAct { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .leaflet-popup-content .pAct button {
+    border: 0; border-radius: 9px; padding: 10px 12px; min-height: 44px;
+    font-size: 14px; font-weight: 700; color: #fff; background: #1560bd;
+  }
+  .leaflet-popup-content .pAct .alege { background: #cf6b12; }
+
+  /* ---- carduri si butoane ---- */
+  .card { background: #fff; border-radius: 14px; padding: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.10); margin-bottom: 12px; }
+  .eticheta { font-size: 13px; color: #6b6b80; text-transform: uppercase; letter-spacing: .5px; }
+  #magazinNume { font-size: 27px; font-weight: 800; line-height: 1.15; margin: 6px 0 4px; }
+  #magazinAdresa { font-size: 17px; color: #44445a; }
+  #magazinDetalii { font-size: 15px; color: #6b6b80; margin-top: 6px; }
+  .btn {
+    display: block; width: 100%; border: none; border-radius: 12px;
+    font-size: 21px; font-weight: 700; padding: 18px; margin-top: 10px; color: #fff; cursor: pointer; min-height: 56px;
+  }
+  .btn:active { opacity: .75; }
+  .btn-navigheaza { background: #1560bd; }
+  .btn-livrat { background: #1d7a46; }
+  .btn-nelivrat { background: #b3261e; }
+  .btn-problema { background: #fff; color: #6b4b00; border: 2px solid #d9a400; font-size: 16px; padding: 12px; min-height: 48px; }
+  .btn-start { background: #1d7a46; font-size: 25px; padding: 24px; }
+  .btn-secundar { background: #e8e8ee; color: #1a1a2e; font-size: 16px; padding: 12px; min-height: 48px; }
+  .rand2 { display: flex; gap: 10px; }
+  .rand2 .btn { flex: 1; }
+
+  .titluLista { font-size: 13px; color: #6b6b80; text-transform: uppercase; letter-spacing: .5px; margin: 4px 2px 8px; }
+  .oprire {
+    background: #fff; border-radius: 12px; padding: 11px 12px; margin-bottom: 8px;
+    display: flex; align-items: center; gap: 12px; border: 2px solid transparent; cursor: pointer;
+  }
+  .oprire .seq {
+    width: 34px; height: 34px; line-height: 34px; border-radius: 50%; flex-shrink: 0;
+    background: #1560bd; color: #fff; text-align: center; font-weight: 800; font-size: 15px;
+  }
+  .oprire.curenta { border-color: #cf6b12; }
+  .oprire.curenta .seq { background: #cf6b12; }
+  .oprire.livrat { background: #eef8f0; }
+  .oprire.livrat .seq { background: #1d7a46; }
+  .oprire.nelivrat { background: #fbeeed; }
+  .oprire.nelivrat .seq { background: #b3261e; }
+  .oprire.depot .seq { background: #1a1a2e; }
+  .oprire .info { flex: 1; min-width: 0; }
+  .oprire .nume { font-size: 16px; font-weight: 700; }
+  .oprire .adresa { font-size: 13px; color: #6b6b80; }
+  .oprire .stare { font-size: 13px; font-weight: 700; color: #1d7a46; white-space: nowrap; }
+  .oprire.nelivrat .stare { color: #b3261e; }
+  .oprire .peHarta {
+    border: 1px solid #c4c4d0; background: #fff; border-radius: 9px; padding: 8px 10px;
+    font-size: 13px; font-weight: 700; color: #1560bd; min-height: 40px; flex-shrink: 0;
+  }
+
+  #subsol {
+    flex-shrink: 0; background: #fff; border-top: 1px solid #ddd; padding: 7px 14px;
+    display: flex; gap: 16px; font-size: 13px; color: #44445a; flex-wrap: wrap;
+  }
+  #subsol .rau { color: #b3261e; font-weight: 700; }
+  #subsol .ver { margin-left: auto; color: #9a9aac; }
+  #ecranMesaj { text-align: center; padding: 40px 20px; }
+  #ecranMesaj .mare { font-size: 24px; font-weight: 700; margin-bottom: 12px; }
+  #ecranMesaj .mic { font-size: 17px; color: #6b6b80; margin-bottom: 24px; }
+  .ascuns { display: none !important; }
+  #banner { background: #b3261e; color: #fff; text-align: center; padding: 10px; font-size: 16px; font-weight: 700; flex-shrink: 0; }
+  #bannerUpdate { background: #1560bd; color: #fff; text-align: center; padding: 12px; font-size: 16px; font-weight: 700; flex-shrink: 0; cursor: pointer; }
+
+  /* ---- ferestre de confirmare ---- */
+  dialog { margin: auto; width: 480px; max-width: 94vw; border: 0; border-radius: 16px; padding: 20px; max-height: 86dvh; overflow: auto; }
+  dialog::backdrop { background: rgba(0,0,0,.45); }
+  dialog h2 { font-size: 21px; margin-bottom: 8px; }
+  dialog p { font-size: 16px; color: #44445a; }
+  #dlgCamp { width: 100%; font: inherit; font-size: 18px; padding: 12px; margin-top: 12px; border: 2px solid #c4c4d0; border-radius: 10px; }
+  #dlgEroare { color: #b3261e; font-weight: 700; margin-top: 8px; font-size: 15px; }
+  .dlgButoane { display: flex; gap: 10px; margin-top: 16px; }
+  .dlgButoane .btn { margin-top: 0; font-size: 18px; padding: 14px; }
+  #etapeLista a {
+    display: block; padding: 14px; margin: 8px 0; border: 2px solid #c4c4d0; border-radius: 12px;
+    color: #1560bd; font-weight: 700; font-size: 16px; text-decoration: none;
+  }
+  #etapeLista a small { display: block; font-weight: 400; color: #6b6b80; font-size: 13px; margin-top: 3px; }
+
+  @media (max-width: 500px) {
+    #antet .titlu { font-size: 17px; }
+    #magazinNume { font-size: 23px; }
+    .btn { font-size: 19px; padding: 15px; }
+    .btn-start { font-size: 22px; padding: 20px; }
+    #hartaBara button { font-size: 13px; padding: 8px 10px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="antet">
+  <div>
+    <div class="titlu" id="antetRuta">Ruta</div>
+    <div class="sub" id="antetData"></div>
+  </div>
+  <div class="dreapta">
+    <button id="btnHartaComuta" class="ascuns" onclick="comutaHarta()">Harta</button>
+    <div class="progres"><span id="antetProgres">-</span><small>opriri</small></div>
+  </div>
+</div>
+
+<div id="banner" class="ascuns"></div>
+<div id="bannerUpdate" class="ascuns" onclick="incarcaActualizarea()">
+  Traseu actualizat de dispecer &mdash; apasa pentru a incarca (progresul se pastreaza)
+</div>
+
+<div id="principal">
+  <div id="hartaBox" class="ascuns">
+    <div id="harta"></div>
+    <div id="hartaBara">
+      <button onclick="totTraseul()">Tot traseul</button>
+      <button onclick="undeSunt()">Unde sunt</button>
+      <button class="principal" onclick="arataEtape()">Etape Google Maps</button>
+    </div>
+    <div id="hartaJos">
+      <div id="hartaInfo"></div>
+      <div id="hartaLegenda"><span class="punct" style="background:#1560bd"></span>de facut<span class="punct" style="background:#cf6b12"></span>curent<span class="punct" style="background:#1d7a46"></span>livrat<span class="punct" style="background:#b3261e"></span>nelivrat</div>
+    </div>
+  </div>
+
+  <div id="continut">
+    <div id="ecranMesaj">
+      <div class="mare" id="mesajMare">Se incarca ruta...</div>
+      <div class="mic" id="mesajMic"></div>
+      <button class="btn btn-secundar" id="btnReincarca" onclick="incarcaRuta()">Reincarca</button>
+    </div>
+
+    <div id="ecranStart" class="ascuns">
+      <div class="card">
+        <div class="eticheta">Ruta de azi</div>
+        <div id="magazinePeRuta" style="font-size:18px; margin:10px 0;"></div>
+        <button class="btn btn-start" onclick="incepeRuta()">INCEPE RUTA</button>
+      </div>
+      <div class="titluLista">Opririle, in ordine</div>
+      <div id="listaStart"></div>
+    </div>
+
+    <div id="ecranLucru" class="ascuns">
+      <div class="card">
+        <div class="eticheta" id="etichetaCurenta">Urmatorul magazin</div>
+        <div id="magazinNume"></div>
+        <div id="magazinAdresa"></div>
+        <div id="magazinDetalii"></div>
+        <button class="btn btn-navigheaza" onclick="navigheaza()">NAVIGHEAZA (Waze)</button>
+        <div id="btnStandard">
+          <div class="rand2">
+            <button class="btn btn-livrat" onclick="livrat()">LIVRAT</button>
+            <button class="btn btn-nelivrat" onclick="nelivrat()">NU AM LIVRAT</button>
+          </div>
+          <button class="btn btn-problema" onclick="problema()">Problema / observatie</button>
+        </div>
+        <button class="btn btn-livrat ascuns" id="btnDepot" onclick="ajunsFirma()">AM AJUNS LA FIRMA</button>
+      </div>
+      <div class="titluLista">Opririle, in ordine &middot; apasa pe una ca s-o alegi</div>
+      <div id="lista"></div>
+    </div>
+
+    <div id="ecranFinal" class="ascuns">
+      <div class="card" style="text-align:center;">
+        <div style="font-size:27px; font-weight:800; margin-bottom:8px;">Ruta terminata</div>
+        <div id="rezumatFinal" style="font-size:17px; color:#44445a;"></div>
+        <button class="btn btn-start" id="btnIncheie" onclick="incheieRuta()">INCHEIE ZIUA</button>
+      </div>
+      <div id="listaFinal"></div>
+    </div>
+  </div>
+</div>
+
+<div id="subsol">
+  <span id="stGps">GPS: -</span>
+  <span id="stNet">Net: -</span>
+  <span id="stCoada"></span>
+  <span class="ver">v3.0</span>
+</div>
+
+<!-- fereastra generala: confirmari si texte -->
+<dialog id="dlg">
+  <h2 id="dlgTitlu"></h2>
+  <p id="dlgText"></p>
+  <input id="dlgCamp" type="text" autocomplete="off">
+  <div id="dlgEroare"></div>
+  <div class="dlgButoane">
+    <button class="btn btn-livrat" id="dlgOk">Da</button>
+    <button class="btn btn-secundar" id="dlgRenunta">Renunta</button>
+  </div>
+</dialog>
+
+<!-- etape Google Maps -->
+<dialog id="dlgEtape">
+  <h2>Navigare pe etape (Google Maps)</h2>
+  <p>Urmati etapele in ordine. Google Maps porneste de la pozitia tabletei si trece prin opririle ramase.</p>
+  <div id="etapeLista"></div>
+  <button class="btn btn-secundar" onclick="document.getElementById('dlgEtape').close()">Inchide</button>
+</dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ================== CONFIGURARE ==================
+var SERVER_URL = 'https://script.google.com/macros/s/AKfycbwWNLktAcTya9DyfQSsj6TCcKOydvluAazASeDadCMALwdaDUPXW2Wjalo46MM60HI/exec';
+var API_KEY = 'bc2026x7k9m2';
+var ORS_KEY = '5b3ce3597851110001cf624841e96f3c608f435a9f3a490eeda60c11';  // linia traseului pe harta
+var OPRIRI_PE_ETAPA = 4;   // Google Maps pe telefon accepta putine opriri intermediare
+// =================================================
+// URL tableta:  index.html?tableta=01   (identitate fixa per masina)
+// URL test:     index.html?ruta=PH01    (cere un traseu anume, pentru verificari)
+
+function paramUrl(nume) {
+  var m = window.location.search.match(new RegExp('[?&]' + nume + '=([^&]+)'));
+  return m ? decodeURIComponent(m[1]) : '';
+}
+var tableta = paramUrl('tableta');
+var rutaParam = paramUrl('ruta');
+var dataParam = paramUrl('data');   // doar pentru teste: forteaza o anumita zi
+var ruta = '';               // numele traseului real, vine de la server
+
+var stareRuta = null;      // raspunsul serverului: { date, stops: [...] }
+var statusuri = {};        // seq -> 'livrat' | 'nelivrat'
+var curent = null;         // seq-ul opririi curente
+var pornit = false;
+var incheiat = false;
+var sofer = '';
+var ultimaPozitie = null;  // { lat, lon, acc, t }
+var watchId = null;
+var versiuneCurenta = null;   // published_at cu care ruleaza acum tableta
+var verificareInterval = null;
+
+function versiunePub() {
+  return (stareRuta && stareRuta.published_at)
+    ? String(stareRuta.published_at).replace(/[^0-9]/g, '') : '0';
+}
+function cheieZi() {
+  return 'tw_' + (stareRuta ? stareRuta.date : 'x') + '_' + ruta + '_v' + versiunePub();
+}
+
+// ---------------- Pornire ----------------
+function init() {
+  if (!tableta && !rutaParam) {
+    arataMesaj('Tableta nu este configurata', 'Aceasta tableta nu are o identitate setata. Sunati responsabilul.');
+    document.getElementById('btnReincarca').classList.add('ascuns');
+    return;
+  }
+  document.getElementById('antetRuta').textContent =
+    tableta ? 'Tableta ' + tableta : 'Ruta ' + rutaParam;
+  initHarta();
+  porneasteGps();
+  incarcaRuta();
+  setInterval(trimiteCoada, 20000);
+  setInterval(heartbeat, 90000);
+  setInterval(actualizeazaSubsol, 5000);
+  window.addEventListener('online', trimiteCoada);
+}
+
+function incarcaRuta() {
+  arataMesaj('Se incarca ruta...', '');
+  var url;
+  if (tableta) {
+    url = SERVER_URL + '?action=get_tablet_route&tableta=' + encodeURIComponent(tableta) +
+          '&key=' + encodeURIComponent(API_KEY);
+  } else {
+    url = SERVER_URL + '?action=get_route&ruta=' + encodeURIComponent(rutaParam) +
+          '&key=' + encodeURIComponent(API_KEY);
+  }
+  if (dataParam) { url = url + '&data=' + encodeURIComponent(dataParam); }
+  fetch(url).then(function (r) { return r.json(); }).then(function (d) {
+    if (!d.ok) { arataMesaj('Eroare server', d.error || ''); return; }
+    stareRuta = d;
+    ruta = d.route || rutaParam || '';
+    document.getElementById('antetData').textContent = d.date;
+    if (tableta) {
+      document.getElementById('antetRuta').textContent =
+        'Tableta ' + tableta + (ruta ? ' · ' + ruta : '');
+    }
+    if (!d.route && tableta) {
+      arataMesaj('Nicio ruta atribuita azi acestei tablete',
+                 'Se reincearca automat. Daca trebuia sa ai ruta, sunati responsabilul.');
+      setTimeout(incarcaRuta, 300000);
+      return;
+    }
+    if (!d.stops || d.stops.length === 0) {
+      arataMesaj('Ruta zilei nu este inca publicata', 'Se reincearca automat. Daca dureaza, sunati responsabilul.');
+      setTimeout(incarcaRuta, 300000);
+      return;
+    }
+    versiuneCurenta = stareRuta.published_at || '';
+    restaureazaStare();
+    confirmaPreluarea();
+    traseuNou();
+    deseneaza();
+    pornemVerificareaVersiunii();
+  }).catch(function () {
+    arataMesaj('Nu am putut lua ruta', 'Verificati semnalul. Se reincearca automat.');
+    setTimeout(incarcaRuta, 60000);
+  });
+}
+
+// Trimite ROUTE_LOADED o singura data pe zi+ruta: dovada ca tableta a preluat traseul
+function confirmaPreluarea() {
+  var k = 'tw_loaded_' + stareRuta.date + '_' + ruta + '_v' + versiunePub();
+  try {
+    if (localStorage.getItem(k)) return;
+    localStorage.setItem(k, '1');
+  } catch (e) {}
+  trimiteEveniment('ROUTE_LOADED', null, stareRuta.stops.length + ' opriri');
+}
+
+// ---------------- Verificare versiune noua (auto-refresh inteligent) --------
+function pornemVerificareaVersiunii() {
+  if (verificareInterval) return;
+  verificareInterval = setInterval(verificaVersiune, 60000);
+}
+
+function verificaVersiune() {
+  if (!tableta || !stareRuta) return;
+  var url = SERVER_URL + '?action=get_tablet_route&tableta=' + encodeURIComponent(tableta) +
+            '&key=' + encodeURIComponent(API_KEY);
+  if (dataParam) { url = url + '&data=' + encodeURIComponent(dataParam); }
+  fetch(url).then(function (r) { return r.json(); }).then(function (d) {
+    if (!d.ok || !d.route) return;
+    var noua = d.published_at || '';
+    if (noua && noua !== versiuneCurenta) {
+      rutaNoua = d;                       // o retinem pana o aplicam
+      if (!pornit) {
+        incarcaActualizarea();            // ruta neinceputa: reincarca automat, silentios
+      } else {
+        document.getElementById('bannerUpdate').classList.remove('ascuns');   // soferul decide cand
+      }
+    }
+  }).catch(function () {});
+}
+
+var rutaNoua = null;
+
+// Incarca ruta noua PASTRAND statusurile magazinelor deja livrate (dupa store_code)
+function incarcaActualizarea() {
+  if (!rutaNoua) { incarcaRuta(); return; }
+  var vechiPeCod = {};
+  if (stareRuta && stareRuta.stops) {
+    for (var i = 0; i < stareRuta.stops.length; i++) {
+      var sc = String(stareRuta.stops[i].store_code);
+      if (statusuri[stareRuta.stops[i].seq]) {
+        vechiPeCod[sc] = statusuri[stareRuta.stops[i].seq];
+      }
+    }
+  }
+  stareRuta = rutaNoua;
+  rutaNoua = null;
+  ruta = stareRuta.route || ruta;
+  versiuneCurenta = stareRuta.published_at || '';
+  document.getElementById('antetData').textContent = stareRuta.date;
+  if (tableta) {
+    document.getElementById('antetRuta').textContent =
+      'Tableta ' + tableta + (ruta ? ' · ' + ruta : '');
+  }
+  statusuri = {};
+  for (var j = 0; j < stareRuta.stops.length; j++) {
+    var cod = String(stareRuta.stops[j].store_code);
+    if (vechiPeCod[cod]) statusuri[stareRuta.stops[j].seq] = vechiPeCod[cod];
+  }
+  incheiat = false;
+  curent = null;
+  salveazaStare();
+  document.getElementById('bannerUpdate').classList.add('ascuns');
+  confirmaPreluarea();
+  traseuNou();
+  deseneaza();
+}
+
+// ---------------- Stare locala (rezista la restart) ----------------
+function salveazaStare() {
+  try {
+    localStorage.setItem(cheieZi(), JSON.stringify({
+      statusuri: statusuri, pornit: pornit, incheiat: incheiat, sofer: sofer
+    }));
+  } catch (e) {}
+}
+function restaureazaStare() {
+  statusuri = {}; pornit = false; incheiat = false; sofer = '';
+  try {
+    var s = localStorage.getItem(cheieZi());
+    if (s) {
+      var o = JSON.parse(s);
+      statusuri = o.statusuri || {};
+      pornit = !!o.pornit;
+      incheiat = !!o.incheiat;
+      sofer = o.sofer || '';
+    }
+  } catch (e) {}
+}
+
+// ---------------- Desenare ecrane ----------------
+function arataMesaj(mare, mic) {
+  comuta('ecranMesaj');
+  document.getElementById('mesajMare').textContent = mare;
+  document.getElementById('mesajMic').textContent = mic;
+}
+function comuta(id) {
+  var ecrane = ['ecranMesaj', 'ecranStart', 'ecranLucru', 'ecranFinal'];
+  for (var i = 0; i < ecrane.length; i++) {
+    document.getElementById(ecrane[i]).classList.toggle('ascuns', ecrane[i] !== id);
+  }
+  // harta apare doar cand avem o ruta
+  var cuHarta = (id !== 'ecranMesaj') && hartaDisponibila();
+  document.getElementById('hartaBox').classList.toggle('ascuns', !cuHarta);
+  document.getElementById('btnHartaComuta').classList.toggle('ascuns', !cuHarta);
+  if (cuHarta) reimprospateazaDimensiuneHarta();
+}
+
+function eDepot(s) { return String(s.store_code) === '999'; }
+
+function opririRamase() {
+  var n = 0;
+  for (var i = 0; i < stareRuta.stops.length; i++) {
+    if (!statusuri[stareRuta.stops[i].seq]) n++;
+  }
+  return n;
+}
+
+function deseneaza() {
+  var stops = stareRuta.stops;
+  var facute = stops.length - opririRamase();
+  document.getElementById('antetProgres').textContent = facute + '/' + stops.length;
+
+  if (!pornit) {
+    comuta('ecranStart');
+    var nrMag = 0;
+    for (var k = 0; k < stops.length; k++) if (!eDepot(stops[k])) nrMag++;
+    document.getElementById('magazinePeRuta').textContent =
+      nrMag + ' magazine pe ruta de azi' + (kmTraseu ? ' · aprox. ' + kmTraseu + ' km' : '');
+    deseneazaLista('listaStart', false);
+    deseneazaHarta();
+    return;
+  }
+  if (incheiat || opririRamase() === 0) {
+    comuta('ecranFinal');
+    deseneazaFinal();
+    deseneazaHarta();
+    return;
+  }
+
+  comuta('ecranLucru');
+  var stop = gasesteStop(curent);
+  if (!stop || statusuri[stop.seq]) {
+    stop = null;
+    for (var i = 0; i < stops.length; i++) {
+      if (!statusuri[stops[i].seq]) { stop = stops[i]; break; }
+    }
+    curent = stop ? stop.seq : null;
+  }
+  var depot = eDepot(stop);
+  document.getElementById('btnStandard').classList.toggle('ascuns', depot);
+  document.getElementById('btnDepot').classList.toggle('ascuns', !depot);
+  document.getElementById('etichetaCurenta').textContent =
+    depot ? 'Final de ruta' : 'Magazin ' + stop.seq + ' din ' + stops.length;
+  document.getElementById('magazinNume').textContent = stop.store;
+  document.getElementById('magazinAdresa').textContent = stop.location || '';
+  document.getElementById('magazinDetalii').textContent =
+    'Cod ' + stop.store_code + (stop.packages ? '  ·  ' + stop.packages + ' buc produse' : '');
+
+  deseneazaLista('lista', true);
+  deseneazaHarta();
+}
+
+function deseneazaLista(idContainer, interactiv) {
+  var el = document.getElementById(idContainer);
+  var html = '';
+  var stops = stareRuta.stops;
+  for (var i = 0; i < stops.length; i++) {
+    var s = stops[i];
+    var cls = 'oprire';
+    var stare = '';
+    if (statusuri[s.seq] === 'livrat') { cls += ' livrat'; stare = '&#10004; Livrat'; }
+    else if (statusuri[s.seq] === 'nelivrat') { cls += ' nelivrat'; stare = '&#10008; Nelivrat'; }
+    else if (pornit && s.seq === curent) { cls += ' curenta'; }
+    if (eDepot(s)) cls += ' depot';
+    var click = '';
+    if (interactiv) {
+      click = statusuri[s.seq] ? ' onclick="anuleazaStatus(' + s.seq + ')"'
+                               : ' onclick="alegeStop(' + s.seq + ')"';
+    } else {
+      click = ' onclick="centreazaPe(' + s.seq + ', true)"';
+    }
+    var buton = (hartaDisponibila() && s.lat && s.lon)
+      ? '<button class="peHarta" onclick="event.stopPropagation(); centreazaPe(' + s.seq + ', true)">Pe harta</button>' : '';
+    html += '<div class="' + cls + '"' + click + '>' +
+      '<div class="seq">' + (eDepot(s) ? 'D' : s.seq) + '</div>' +
+      '<div class="info"><div class="nume">' + escapeHtml(s.store) + '</div>' +
+      '<div class="adresa">' + escapeHtml((s.store_code && !eDepot(s) ? 'Cod ' + s.store_code + ' · ' : '') + (s.location || '')) + '</div></div>' +
+      (stare ? '<div class="stare">' + stare + '</div>' : '') + buton + '</div>';
+  }
+  el.innerHTML = html;
+}
+
+function deseneazaFinal() {
+  var stops = stareRuta.stops;
+  var livrate = 0, nelivrate = 0;
+  for (var i = 0; i < stops.length; i++) {
+    if (eDepot(stops[i])) continue;
+    if (statusuri[stops[i].seq] === 'livrat') livrate++;
+    if (statusuri[stops[i].seq] === 'nelivrat') nelivrate++;
+  }
+  document.getElementById('rezumatFinal').textContent =
+    'Livrate: ' + livrate + '   ·   Nelivrate: ' + nelivrate +
+    (incheiat ? '   ·   Zi incheiata' : '');
+  document.getElementById('btnIncheie').style.display = incheiat ? 'none' : 'block';
+  deseneazaLista('listaFinal', true);
+}
+
+function gasesteStop(seq) {
+  if (seq === null || !stareRuta) return null;
+  for (var i = 0; i < stareRuta.stops.length; i++) {
+    if (stareRuta.stops[i].seq === seq) return stareRuta.stops[i];
+  }
+  return null;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ---------------- Fereastra de confirmare (inlocuieste prompt/confirm) ----------------
+// opt: { titlu, text, camp: true/false, obligatoriu, placeholder, ok, culoareOk }
+function intreaba(opt, cb) {
+  var dlg = document.getElementById('dlg');
+  if (!dlg.showModal) {   // browser foarte vechi: revenim la ferestrele clasice
+    if (opt.camp) { var v = prompt(opt.titlu + (opt.text ? '\n' + opt.text : '')); if (v) cb(v); }
+    else if (confirm(opt.titlu + (opt.text ? '\n' + opt.text : ''))) cb(true);
+    return;
+  }
+  document.getElementById('dlgTitlu').textContent = opt.titlu || '';
+  document.getElementById('dlgText').textContent = opt.text || '';
+  var camp = document.getElementById('dlgCamp');
+  camp.classList.toggle('ascuns', !opt.camp);
+  camp.value = opt.valoare || '';
+  camp.placeholder = opt.placeholder || '';
+  document.getElementById('dlgEroare').textContent = '';
+  var ok = document.getElementById('dlgOk');
+  ok.textContent = opt.ok || 'Da';
+  ok.className = 'btn ' + (opt.culoareOk || 'btn-livrat');
+  ok.onclick = function () {
+    var val = true;
+    if (opt.camp) {
+      val = camp.value.replace(/^\s+|\s+$/g, '');
+      if (!val && opt.obligatoriu) {
+        document.getElementById('dlgEroare').textContent = 'Campul este obligatoriu.';
+        return;
+      }
+      if (!val) { dlg.close(); return; }
+    }
+    dlg.close();
+    cb(val);
+  };
+  document.getElementById('dlgRenunta').onclick = function () { dlg.close(); };
+  dlg.showModal();
+  if (opt.camp) setTimeout(function () { camp.focus(); }, 50);
+}
+
+// ---------------- Actiuni sofer ----------------
+function incepeRuta() {
+  intreaba({ titlu: 'Incepi ruta', text: 'Scrie numele soferului:', camp: true, obligatoriu: true,
+             valoare: sofer, ok: 'INCEPE' }, function (nume) {
+    sofer = nume;
+    pornit = true;
+    salveazaStare();
+    porneasteGps();
+    trimiteEveniment('START_ROUTE', null, '');
+    deseneaza();
+  });
+}
+
+function alegeStop(seq) {
+  curent = seq;
+  deseneaza();
+  centreazaPe(seq, false);
+  document.getElementById('continut').scrollTop = 0;
+}
+
+function anuleazaStatus(seq) {
+  var stop = gasesteStop(seq);
+  if (!stop) return;
+  intreaba({ titlu: 'Anulezi statusul?', text: stop.seq + '. ' + stop.store + ' redevine de facut.',
+             ok: 'Da, anuleaza', culoareOk: 'btn-nelivrat' }, function () {
+    delete statusuri[seq];
+    if (incheiat) incheiat = false;
+    curent = seq;
+    salveazaStare();
+    trimiteEveniment('CANCEL_STATUS', stop, '');
+    deseneaza();
+  });
+}
+
+function navigheaza() {
+  var stop = gasesteStop(curent);
+  if (!stop) return;
+  navigheazaLa(stop);
+}
+function linkWaze(stop) {
+  if (stop.lat && stop.lon) return 'https://waze.com/ul?ll=' + stop.lat + ',' + stop.lon + '&navigate=yes';
+  return 'https://waze.com/ul?q=' + encodeURIComponent(stop.location || stop.store);
+}
+function navigheazaLa(stop) {
+  trimiteEveniment('NAVIGARE', stop, '');
+  window.location.href = linkWaze(stop);
+}
+
+function livrat() {
+  var stop = gasesteStop(curent);
+  if (!stop) return;
+  intreaba({ titlu: 'Ai livrat?', text: stop.seq + '. ' + stop.store + ' (cod ' + stop.store_code + ')',
+             ok: 'Da, LIVRAT' }, function () {
+    statusuri[stop.seq] = 'livrat';
+    salveazaStare();
+    trimiteEveniment('DELIVERED', stop, '');
+    deseneaza();
+  });
+}
+
+function nelivrat() {
+  var stop = gasesteStop(curent);
+  if (!stop) return;
+  intreaba({ titlu: 'De ce nu s-a livrat?', text: stop.seq + '. ' + stop.store, camp: true, obligatoriu: true,
+             placeholder: 'ex: magazin inchis', ok: 'NU AM LIVRAT', culoareOk: 'btn-nelivrat' }, function (motiv) {
+    statusuri[stop.seq] = 'nelivrat';
+    salveazaStare();
+    trimiteEveniment('FAILED', stop, motiv);
+    deseneaza();
+  });
+}
+
+function problema() {
+  var stop = gasesteStop(curent);
+  intreaba({ titlu: 'Problema / observatie', text: stop ? stop.store : '', camp: true,
+             ok: 'Trimite', culoareOk: 'btn-navigheaza' }, function (nota) {
+    trimiteEveniment('NOTE', stop, nota);
+  });
+}
+
+function ajunsFirma() {
+  var stop = gasesteStop(curent);
+  if (!stop) return;
+  statusuri[stop.seq] = 'livrat';
+  salveazaStare();
+  trimiteEveniment('ARRIVED_DEPOT', stop, '');
+  deseneaza();
+}
+
+function incheieRuta() {
+  intreaba({ titlu: 'Inchei ziua?', text: 'Dupa asta tableta nu mai trimite pozitia.', ok: 'Da, INCHEIE' }, function () {
+    incheiat = true;
+    salveazaStare();
+    trimiteEveniment('END_ROUTE', null, '');
+    deseneaza();
+  });
+}
+
+// ================== HARTA ==================
+var harta = null, stratPinuri = null, linieTraseu = null, punctMeu = null, cercMeu = null;
+var marcaje = {};            // seq -> marker
+var traseuIncadrat = false;  // incadram tot traseul o singura data per versiune
+var kmTraseu = null;
+var DEPOT_LAT = 44.347042, DEPOT_LON = 26.083327, DEPOT_RAZA = 200;
+
+function hartaDisponibila() { return !!harta; }
+
+function initHarta() {
+  if (!window.L) return;   // fara internet la pornire: aplicatia merge si fara harta
+  try {
+    harta = L.map('harta', { zoomControl: true, attributionControl: true });
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19, attribution: 'Tiles &copy; Esri'
+    }).addTo(harta);
+    harta.setView([DEPOT_LAT, DEPOT_LON], 10);
+    stratPinuri = L.layerGroup().addTo(harta);
+    var pref = '';
+    try { pref = localStorage.getItem('tw_harta') || ''; } catch (e) {}
+    if (pref === 'ascunsa') document.getElementById('hartaBox').classList.add('restransa');
+    actualizeazaButonHarta();
+  } catch (e) { harta = null; }
+}
+
+function reimprospateazaDimensiuneHarta() {
+  if (!harta) return;
+  setTimeout(function () { harta.invalidateSize(); if (!traseuIncadrat) totTraseul(); }, 60);
+}
+
+function comutaHarta() {
+  var box = document.getElementById('hartaBox');
+  box.classList.toggle('restransa');
+  try { localStorage.setItem('tw_harta', box.classList.contains('restransa') ? 'ascunsa' : ''); } catch (e) {}
+  actualizeazaButonHarta();
+  reimprospateazaDimensiuneHarta();
+}
+function actualizeazaButonHarta() {
+  var ascunsa = document.getElementById('hartaBox').classList.contains('restransa');
+  document.getElementById('btnHartaComuta').textContent = ascunsa ? 'Arata harta' : 'Ascunde harta';
+}
+
+function clasaPin(s) {
+  if (eDepot(s)) return 'depot';
+  if (statusuri[s.seq] === 'livrat') return 'livrat';
+  if (statusuri[s.seq] === 'nelivrat') return 'nelivrat';
+  if (pornit && s.seq === curent) return 'curenta';
+  return '';
+}
+
+function iconPin(s) {
+  var cls = clasaPin(s);
+  var mare = (cls === 'curenta');
+  return L.divIcon({
+    className: '',
+    html: '<div class="pin ' + cls + '">' + (eDepot(s) ? 'D' : s.seq) + '</div>',
+    iconSize: mare ? [40, 40] : [34, 34], iconAnchor: mare ? [20, 20] : [17, 17], popupAnchor: [0, -16]
+  });
+}
+
+function continutPopup(s) {
+  var root = document.createElement('div');
+  var h = document.createElement('h3');
+  h.textContent = eDepot(s) ? 'Depozit Arteca (plecare si retur)' : s.seq + '. ' + s.store;
+  root.appendChild(h);
+  if (!eDepot(s)) {
+    var p1 = document.createElement('div');
+    p1.textContent = 'Cod ' + s.store_code + (s.packages ? ' · ' + s.packages + ' buc' : '');
+    root.appendChild(p1);
+  }
+  if (s.location) { var p2 = document.createElement('div'); p2.textContent = s.location; p2.style.color = '#6b6b80'; root.appendChild(p2); }
+  var st = statusuri[s.seq];
+  if (st) { var p3 = document.createElement('div'); p3.style.fontWeight = '700';
+    p3.style.color = st === 'livrat' ? '#1d7a46' : '#b3261e';
+    p3.textContent = st === 'livrat' ? '✔ Livrat' : '✘ Nelivrat'; root.appendChild(p3); }
+  var act = document.createElement('div'); act.className = 'pAct';
+  if (pornit && !incheiat && !st && s.seq !== curent) {
+    var b1 = document.createElement('button'); b1.className = 'alege'; b1.textContent = 'Alege aceasta oprire';
+    b1.onclick = function () { harta.closePopup(); alegeStop(s.seq); };
+    act.appendChild(b1);
+  }
+  var b2 = document.createElement('button'); b2.textContent = 'Navigheaza (Waze)';
+  b2.onclick = function () { navigheazaLa(s); };
+  act.appendChild(b2);
+  root.appendChild(act);
+  return root;
+}
+
+// apelat cand vine o ruta noua / o versiune noua de la dispecer
+function traseuNou() {
+  traseuIncadrat = false;
+  kmTraseu = null;
+  if (!harta) return;
+  stratPinuri.clearLayers();
+  marcaje = {};
+  var stops = stareRuta.stops;
+  for (var i = 0; i < stops.length; i++) {
+    var s = stops[i];
+    if (!s.lat || !s.lon) continue;
+    (function (s) {
+      var m = L.marker([s.lat, s.lon], { icon: iconPin(s), title: s.store, zIndexOffset: eDepot(s) ? -100 : 0 });
+      m.bindPopup(function () { return continutPopup(s); });
+      m.addTo(stratPinuri);
+      marcaje[s.seq] = m;
+    })(s);
+  }
+  deseneazaLinie();
+}
+
+// actualizeaza culorile pinurilor dupa starea curenta
+function deseneazaHarta() {
+  if (!harta || !stareRuta) return;
+  var stops = stareRuta.stops;
+  for (var i = 0; i < stops.length; i++) {
+    var m = marcaje[stops[i].seq];
+    if (!m) continue;
+    m.setIcon(iconPin(stops[i]));
+    m.setZIndexOffset(clasaPin(stops[i]) === 'curenta' ? 1000 : (eDepot(stops[i]) ? -100 : 0));
+    if (m.isPopupOpen()) m.setPopupContent(continutPopup(stops[i]));
+  }
+  var ramase = 0;
+  for (var j = 0; j < stops.length; j++) if (!statusuri[stops[j].seq] && !eDepot(stops[j])) ramase++;
+  document.getElementById('hartaInfo').textContent =
+    (kmTraseu ? 'Traseu aprox. ' + kmTraseu + ' km · ' : '') + ramase + ' magazine ramase';
+}
+
+function puncteTraseu() {
+  // plecare din depozit -> opririle in ordine (ultima e depozitul, la retur)
+  var pts = [[DEPOT_LAT, DEPOT_LON]];
+  var stops = stareRuta.stops;
+  for (var i = 0; i < stops.length; i++) if (stops[i].lat && stops[i].lon) pts.push([stops[i].lat, stops[i].lon]);
+  var u = stops[stops.length - 1];
+  if (!u || !eDepot(u)) pts.push([DEPOT_LAT, DEPOT_LON]);
+  return pts;
+}
+
+function deseneazaLinie() {
+  if (linieTraseu) { harta.removeLayer(linieTraseu); linieTraseu = null; }
+  var pts = puncteTraseu();
+  if (pts.length < 2) return;
+  // 1) imediat: linii drepte intre opriri (se vede ordinea chiar fara internet)
+  linieTraseu = L.polyline(pts, { color: '#1560bd', weight: 3, opacity: .55, dashArray: '6 8' }).addTo(harta);
+  linieTraseu.bringToBack();
+  if (!traseuIncadrat) totTraseul();
+  // 2) drumul real, din cache sau de la OpenRouteService
+  var cheie = 'tw_geom_' + (stareRuta.date || '') + '_' + ruta + '_v' + versiunePub();
+  var salvat = null;
+  try { salvat = JSON.parse(localStorage.getItem(cheie) || 'null'); } catch (e) {}
+  if (salvat && salvat.coords) { aplicaGeometrie(salvat); return; }
+  if (pts.length > 50) return;   // limita ORS pentru o cerere
+  fetch('https://api.openrouteservice.org/v2/directions/driving-car/geojson', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': ORS_KEY },
+    body: JSON.stringify({ coordinates: pts.map(function (p) { return [p[1], p[0]]; }), radiuses: pts.map(function () { return 1000; }) })
+  }).then(function (r) { return r.json(); }).then(function (g) {
+    var f = g && g.features && g.features[0];
+    if (!f) return;
+    var geom = {
+      coords: f.geometry.coordinates.map(function (c) { return [Math.round(c[1] * 1e5) / 1e5, Math.round(c[0] * 1e5) / 1e5]; }),
+      km: Math.round((f.properties.summary.distance || 0) / 1000)
+    };
+    curataGeometriiVechi(cheie);
+    try { localStorage.setItem(cheie, JSON.stringify(geom)); } catch (e) {}
+    aplicaGeometrie(geom);
+  }).catch(function () {});
+}
+
+function aplicaGeometrie(geom) {
+  if (!harta) return;
+  if (linieTraseu) harta.removeLayer(linieTraseu);
+  linieTraseu = L.polyline(geom.coords, { color: '#1560bd', weight: 5, opacity: .7 }).addTo(harta);
+  linieTraseu.bringToBack();
+  kmTraseu = geom.km || null;
+  if (!traseuIncadrat) totTraseul();
+  deseneaza();
+}
+
+function curataGeometriiVechi(pastreaza) {
+  try {
+    var deSters = [];
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (k && k.indexOf('tw_geom_') === 0 && k !== pastreaza) deSters.push(k);
+    }
+    for (var j = 0; j < deSters.length; j++) localStorage.removeItem(deSters[j]);
+  } catch (e) {}
+}
+
+function totTraseul() {
+  if (!harta || !stareRuta) return;
+  var box = document.getElementById('hartaBox');
+  if (box.offsetWidth === 0 || box.offsetHeight === 0) return;
+  harta.invalidateSize();
+  var pts = puncteTraseu();
+  if (pts.length < 2) return;
+  harta.fitBounds(L.latLngBounds(pts), { padding: [40, 40] });
+  traseuIncadrat = true;
+}
+
+function centreazaPe(seq, cuPopup) {
+  if (!harta) return;
+  var m = marcaje[seq];
+  if (!m) return;
+  var box = document.getElementById('hartaBox');
+  if (box.classList.contains('restransa') && window.innerWidth < 900) comutaHarta();
+  harta.setView(m.getLatLng(), Math.max(harta.getZoom(), 14));
+  if (cuPopup) m.openPopup();
+}
+
+function undeSunt() {
+  if (!harta) return;
+  if (ultimaPozitie) harta.setView([ultimaPozitie.lat, ultimaPozitie.lon], 15);
+  else alertaScurta('Inca nu am pozitia GPS. Verificati ca locatia e pornita.');
+}
+
+function actualizeazaPunctMeu() {
+  if (!harta || !ultimaPozitie) return;
+  var ll = [ultimaPozitie.lat, ultimaPozitie.lon];
+  if (!punctMeu) {
+    cercMeu = L.circle(ll, { radius: ultimaPozitie.acc || 30, color: '#187aff', weight: 1, fillOpacity: .08, interactive: false }).addTo(harta);
+    punctMeu = L.circleMarker(ll, { radius: 8, color: '#fff', weight: 3, fillColor: '#187aff', fillOpacity: 1, interactive: false }).addTo(harta);
+  } else {
+    punctMeu.setLatLng(ll);
+    cercMeu.setLatLng(ll).setRadius(ultimaPozitie.acc || 30);
+  }
+}
+
+function alertaScurta(text) {
+  intreaba({ titlu: 'Atentie', text: text, ok: 'Am inteles', culoareOk: 'btn-navigheaza' }, function () {});
+}
+
+// ---------------- Etape Google Maps (doar opririle ramase) ----------------
+function arataEtape() {
+  if (!stareRuta) return;
+  var ramase = [];
+  for (var i = 0; i < stareRuta.stops.length; i++) {
+    var s = stareRuta.stops[i];
+    if (!statusuri[s.seq] && s.lat && s.lon) ramase.push(s);
+  }
+  var box = document.getElementById('etapeLista');
+  box.innerHTML = '';
+  if (ramase.length === 0) {
+    box.innerHTML = '<p>Nu mai sunt opriri ramase.</p>';
+  }
+  for (var j = 0, nr = 1; j < ramase.length; j += OPRIRI_PE_ETAPA, nr++) {
+    var grup = ramase.slice(j, j + OPRIRI_PE_ETAPA);
+    var a = document.createElement('a');
+    a.href = linkGoogle(grup);
+    a.target = '_blank';
+    a.rel = 'noopener';
+    var prim = grup[0], ultim = grup[grup.length - 1];
+    a.innerHTML = 'Etapa ' + nr + ' · ' + (eDepot(prim) ? 'Depozit' : 'oprirea ' + prim.seq) + ' → ' +
+      (eDepot(ultim) ? 'Depozit Arteca' : 'oprirea ' + ultim.seq) +
+      '<small>' + grup.map(function (g) { return escapeHtml(eDepot(g) ? 'Depozit' : g.store); }).join(' → ') + '</small>';
+    (function (prim, nr) {
+      a.onclick = function () { trimiteEveniment('NAVIGARE', prim, 'Google Maps etapa ' + nr); };
+    })(prim, nr);
+    box.appendChild(a);
+  }
+  document.getElementById('dlgEtape').showModal();
+}
+
+function linkGoogle(puncte) {
+  var c = function (p) { return p.lat + ',' + p.lon; };
+  var fin = puncte[puncte.length - 1];
+  var u = 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(c(fin)) +
+          '&travelmode=driving&dir_action=navigate';
+  if (puncte.length > 1) u += '&waypoints=' + encodeURIComponent(puncte.slice(0, -1).map(c).join('|'));
+  return u;
+}
+
+// ---------------- GPS ----------------
+function porneasteGps() {
+  if (!navigator.geolocation || watchId !== null) return;
+  watchId = navigator.geolocation.watchPosition(function (p) {
+    ultimaPozitie = {
+      lat: p.coords.latitude, lon: p.coords.longitude,
+      acc: Math.round(p.coords.accuracy), t: Date.now()
+    };
+    actualizeazaPunctMeu();
+    verificaSosireDepozit();
+  }, function () {}, { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 });
+}
+
+// Detectie automata a sosirii la depozit (fara apasare de buton)
+function verificaSosireDepozit() {
+  if (!pornit || incheiat || !stareRuta || !ultimaPozitie) return;
+  var depot = null;
+  for (var i = 0; i < stareRuta.stops.length; i++) {
+    if (eDepot(stareRuta.stops[i])) { depot = stareRuta.stops[i]; break; }
+  }
+  if (!depot || statusuri[depot.seq]) return;
+  // depozitul se marcheaza automat doar dupa ce au fost tratate toate magazinele
+  for (var k = 0; k < stareRuta.stops.length; k++) {
+    if (!eDepot(stareRuta.stops[k]) && !statusuri[stareRuta.stops[k].seq]) return;
+  }
+  var d = distMetri(ultimaPozitie.lat, ultimaPozitie.lon, DEPOT_LAT, DEPOT_LON);
+  if (d <= DEPOT_RAZA) {
+    statusuri[depot.seq] = 'livrat';
+    salveazaStare();
+    trimiteEveniment('ARRIVED_DEPOT', depot, 'automat');
+    deseneaza();
+  }
+}
+
+function distMetri(la1, lo1, la2, lo2) {
+  var R = 6371000, dLa = (la2 - la1) * Math.PI / 180, dLo = (lo2 - lo1) * Math.PI / 180;
+  var a = Math.sin(dLa/2)*Math.sin(dLa/2) +
+          Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dLo/2)*Math.sin(dLo/2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// ---------------- Evenimente + coada offline ----------------
+function acumLocal() {
+  var d = new Date();
+  function p(n) { return (n < 10 ? '0' : '') + n; }
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' +
+         p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+}
+
+function infoDispozitiv() {
+  var d = tableta ? 'Tableta ' + tableta : '';
+  if (sofer) d = d ? d + ' / ' + sofer : sofer;
+  return d;
+}
+
+function trimiteEveniment(tip, stop, nota) {
+  var ev = {
+    client_time: acumLocal(),
+    route: ruta,
+    date: stareRuta ? stareRuta.date : '',
+    seq: stop ? stop.seq : '',
+    store_code: stop ? stop.store_code : '',
+    event_type: tip,
+    lat: '', lon: '', accuracy_m: '',
+    note: nota || '',
+    device_info: infoDispozitiv()
+  };
+  // GPS proaspat la apasare; daca nu vine in 6 secunde, folosim ultima pozitie
+  var pus = false;
+  function finalizeaza(poz) {
+    if (pus) return;
+    pus = true;
+    if (poz) { ev.lat = poz.lat; ev.lon = poz.lon; ev.accuracy_m = poz.acc; }
+    pushCoada(ev);
+    trimiteCoada();
+  }
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(function (p) {
+      finalizeaza({ lat: p.coords.latitude, lon: p.coords.longitude, acc: Math.round(p.coords.accuracy) });
+    }, function () { finalizeaza(ultimaPozitie); }, { enableHighAccuracy: true, timeout: 6000, maximumAge: 10000 });
+    setTimeout(function () { finalizeaza(ultimaPozitie); }, 6500);
+  } else {
+    finalizeaza(ultimaPozitie);
+  }
+}
+
+function heartbeat() {
+  if (!pornit || incheiat || !stareRuta) return;
+  if (!ultimaPozitie) return;
+  pushCoada({
+    client_time: acumLocal(), route: ruta, date: stareRuta.date,
+    seq: '', store_code: '', event_type: 'HEARTBEAT',
+    lat: ultimaPozitie.lat, lon: ultimaPozitie.lon, accuracy_m: ultimaPozitie.acc,
+    note: '', device_info: infoDispozitiv()
+  });
+  trimiteCoada();
+}
+
+function citesteCoada() {
+  try { return JSON.parse(localStorage.getItem('tw_coada') || '[]'); } catch (e) { return []; }
+}
+function scrieCoada(c) {
+  try { localStorage.setItem('tw_coada', JSON.stringify(c)); } catch (e) {}
+}
+function pushCoada(ev) {
+  var c = citesteCoada();
+  c.push(ev);
+  if (c.length > 500) c = c.slice(c.length - 500);
+  scrieCoada(c);
+  actualizeazaSubsol();
+}
+
+var trimitere = false;
+function trimiteCoada() {
+  if (trimitere) return;
+  var c = citesteCoada();
+  if (c.length === 0) return;
+  trimitere = true;
+  var lot = c.slice(0, 20);
+  fetch(SERVER_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+    body: JSON.stringify({ action: 'events_batch', key: API_KEY, events: lot })
+  }).then(function (r) { return r.json(); }).then(function (d) {
+    trimitere = false;
+    if (d.ok) {
+      var ram = citesteCoada().slice(lot.length);
+      scrieCoada(ram);
+      actualizeazaSubsol();
+      if (ram.length > 0) setTimeout(trimiteCoada, 500);
+    }
+  }).catch(function () { trimitere = false; });
+}
+
+// ---------------- Subsol de stare ----------------
+function actualizeazaSubsol() {
+  var g = document.getElementById('stGps');
+  if (ultimaPozitie && Date.now() - ultimaPozitie.t < 120000) {
+    g.textContent = 'GPS: ok (±' + ultimaPozitie.acc + ' m)';
+    g.className = '';
+  } else {
+    g.textContent = 'GPS: lipsa';
+    g.className = 'rau';
+  }
+  var n = document.getElementById('stNet');
+  if (navigator.onLine) { n.textContent = 'Net: ok'; n.className = ''; }
+  else { n.textContent = 'Net: lipsa'; n.className = 'rau'; }
+  var q = citesteCoada().length;
+  document.getElementById('stCoada').textContent = q > 0 ? 'De trimis: ' + q : '';
+  var banner = document.getElementById('banner');
+  if (pornit && !incheiat && (!navigator.onLine || !ultimaPozitie)) {
+    banner.textContent = !ultimaPozitie ? 'ATENTIE: GPS OPRIT - porniti locatia' : 'FARA INTERNET - datele se trimit cand revine semnalul';
+    banner.classList.remove('ascuns');
+  } else {
+    banner.classList.add('ascuns');
+  }
+}
+
+window.addEventListener('resize', reimprospateazaDimensiuneHarta);
+init();
+</script>
+</body>
+</html>
