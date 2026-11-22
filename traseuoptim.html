@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1a1a2e">
+<title>TraseuOptim</title>
+<style>
+  /* TraseuOptim v1.0 - tura agentului: km, vizite la magazine, urmarire GPS (in aplicatia Android) */
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body { font-family: system-ui, Roboto, Arial, sans-serif; background: #f2f2f5; color: #1a1a2e;
+         display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
+  button { font: inherit; touch-action: manipulation; cursor: pointer; }
+  #antet { background: #1a1a2e; color: #fff; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-shrink: 0; }
+  #antet .titlu { font-size: 19px; font-weight: 800; }
+  #antet .sub { font-size: 13px; color: #b8b8cc; margin-top: 2px; }
+  #antet .dr { text-align: right; font-size: 13px; color: #b8b8cc; }
+  #antet .dr b { display: block; font-size: 22px; color: #fff; }
+  #banner { flex-shrink: 0; padding: 10px 14px; font-weight: 700; font-size: 15px; text-align: center; }
+  #banner.rau { background: #b3261e; color: #fff; }
+  #banner.info { background: #fff4cc; color: #6b4b00; }
+  #continut { flex: 1; overflow-y: auto; padding: 12px; }
+  .card { background: #fff; border-radius: 14px; padding: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.1); margin-bottom: 12px; }
+  .eticheta { font-size: 13px; color: #6b6b80; text-transform: uppercase; letter-spacing: .5px; }
+  .mare { font-size: 24px; font-weight: 800; margin: 6px 0; }
+  .btn { display: block; width: 100%; border: 0; border-radius: 12px; font-size: 20px; font-weight: 700;
+         padding: 16px; margin-top: 10px; color: #fff; min-height: 56px; }
+  .btn:active { opacity: .75; }
+  .verde { background: #1d7a46; } .rosu { background: #b3261e; } .albastru { background: #1560bd; }
+  .gri { background: #e8e8ee; color: #1a1a2e; font-size: 16px; min-height: 48px; padding: 12px; }
+  .portocaliu { background: #cf6b12; } .mov { background: #6a3d9a; }
+  #aici { border: 3px solid #cf6b12; }
+  #cauta { width: 100%; font-size: 17px; padding: 12px; border: 1px solid #c4c4d0; border-radius: 10px; margin-bottom: 10px; }
+  .mag { background: #fff; border-radius: 12px; padding: 12px; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
+  .mag .info { flex: 1; min-width: 0; }
+  .mag .nume { font-size: 16px; font-weight: 700; }
+  .mag .det { font-size: 13px; color: #6b6b80; margin-top: 2px; }
+  .mag .dist { font-size: 15px; font-weight: 800; color: #1560bd; white-space: nowrap; }
+  .mag .stare { font-size: 12px; font-weight: 800; padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
+  .mag.facut { background: #eef8f0; }
+  .mag.oprit { background: #f1f1f4; opacity: .75; }
+  .mag .waze { border: 1px solid #c4c4d0; background: #fff; border-radius: 9px; padding: 8px 10px; font-size: 13px; font-weight: 700; color: #1560bd; min-height: 40px; }
+  .titluLista { font-size: 13px; color: #6b6b80; text-transform: uppercase; letter-spacing: .5px; margin: 6px 2px 8px; }
+  .st-fost { background: #d9f2e1; color: #1d7a46; } .st-retur { background: #ffe9d1; color: #a35200; }
+  .st-nuvrea { background: #f8dcda; color: #b3261e; } .st-inchis { background: #e4e4ea; color: #44445a; }
+  .st-altceva { background: #ece0f7; color: #6a3d9a; }
+  #subsol { flex-shrink: 0; background: #fff; border-top: 1px solid #ddd; padding: 7px 14px; display: flex; gap: 14px; font-size: 13px; color: #44445a; flex-wrap: wrap; }
+  #subsol .rau { color: #b3261e; font-weight: 700; } #subsol .ver { margin-left: auto; color: #9a9aac; }
+  dialog { margin: auto; width: 480px; max-width: 94vw; border: 0; border-radius: 16px; padding: 20px; max-height: 90dvh; overflow: auto; }
+  dialog::backdrop { background: rgba(0,0,0,.45); }
+  dialog h2 { font-size: 21px; margin-bottom: 6px; }
+  dialog p { font-size: 15px; color: #44445a; }
+  dialog input, dialog textarea { width: 100%; font: inherit; font-size: 20px; padding: 12px; margin-top: 12px; border: 2px solid #c4c4d0; border-radius: 10px; }
+  dialog textarea { font-size: 16px; min-height: 70px; }
+  .eroare { color: #b3261e; font-weight: 700; margin-top: 8px; font-size: 15px; min-height: 1px; }
+  .rand2 { display: flex; gap: 10px; } .rand2 .btn { flex: 1; }
+  .ascuns { display: none !important; }
+  .rezumat td { padding: 4px 8px 4px 0; font-size: 16px; } .rezumat td:last-child { font-weight: 800; }
+</style>
+</head>
+<body>
+
+<div id="antet">
+  <div><div class="titlu">TraseuOptim</div><div class="sub" id="antetSub">-</div></div>
+  <div class="dr" id="antetDr"></div>
+</div>
+<div id="banner" class="ascuns"></div>
+
+<div id="continut">
+
+  <!-- prima pornire: numele agentului -->
+  <div id="ecranNume" class="ascuns">
+    <div class="card">
+      <div class="eticheta">Bun venit</div>
+      <div class="mare">Cum te numesti?</div>
+      <input id="numeAgent" style="width:100%;font-size:20px;padding:12px;border:2px solid #c4c4d0;border-radius:10px;margin-top:8px" placeholder="ex: Catalin">
+      <div class="eroare" id="eroareNume"></div>
+      <button class="btn verde" onclick="salveazaNume()">CONTINUA</button>
+    </div>
+  </div>
+
+  <!-- Off Duty -->
+  <div id="ecranOff" class="ascuns">
+    <div class="card">
+      <div class="eticheta">In afara turei</div>
+      <div class="mare">Tura nu e pornita</div>
+      <p style="font-size:15px;color:#44445a">Cand pleci cu masina firmei, apasa INCEPE TURA. Aplicatia inregistreaza traseul pana apesi INCHEIE TURA (Off Duty).</p>
+      <button class="btn verde" style="font-size:24px;padding:22px" onclick="cereKmPlecare()">INCEPE TURA</button>
+    </div>
+    <div class="card ascuns" id="cardRezumat">
+      <div class="eticheta">Ultima tura</div>
+      <table class="rezumat" id="rezumatTura"></table>
+    </div>
+  </div>
+
+  <!-- On Duty -->
+  <div id="ecranOn" class="ascuns">
+    <div class="card ascuns" id="aici">
+      <div class="eticheta">Esti la</div>
+      <div class="mare" id="aiciNume"></div>
+      <div id="aiciDet" style="color:#6b6b80"></div>
+      <button class="btn portocaliu" onclick="deschideStatus(magAici)">MARCHEAZA VIZITA</button>
+    </div>
+    <input id="cauta" placeholder="cauta magazin sau cod" oninput="deseneazaLista()">
+    <div class="titluLista" id="titluLista">Magazinele zonei, cele mai apropiate primele</div>
+    <div id="lista"></div>
+    <button class="btn rosu" style="margin-top:16px" onclick="cereKmSosire()">INCHEIE TURA (Off Duty)</button>
+    <button class="btn gri" onclick="location.href='zona.html?tableta='+ZONA">Harta zonei</button>
+  </div>
+</div>
+
+<div id="subsol">
+  <span id="stGps">GPS: -</span><span id="stNet">Net: -</span><span id="stCoada"></span>
+  <span class="ver" id="stVer">v1.0</span>
+</div>
+
+<!-- km -->
+<dialog id="dlgKm">
+  <h2 id="kmTitlu"></h2>
+  <p id="kmText"></p>
+  <input id="kmCamp" type="number" inputmode="numeric" placeholder="km de la bord">
+  <div class="eroare" id="kmEroare"></div>
+  <div class="rand2"><button class="btn verde" id="kmOk">OK</button><button class="btn gri" onclick="dlgKm.close()">Renunta</button></div>
+</dialog>
+
+<!-- status vizita -->
+<dialog id="dlgStatus">
+  <h2 id="stTitlu"></h2>
+  <p id="stText"></p>
+  <button class="btn verde" onclick="marcheaza('fost')">A fost (livrat)</button>
+  <button class="btn portocaliu" onclick="marcheaza('retur')">Doar retur</button>
+  <button class="btn rosu" onclick="marcheaza('nuvrea')">Nu vrea marfa</button>
+  <button class="btn albastru" style="background:#5c5c70" onclick="marcheaza('inchis')">Magazin inchis</button>
+  <button class="btn mov" onclick="arataAltceva()">Altceva...</button>
+  <div id="zonaAltceva" class="ascuns">
+    <textarea id="notaAltceva" placeholder="scrie pe scurt ce s-a intamplat"></textarea>
+    <div class="eroare" id="eroareAltceva"></div>
+    <button class="btn mov" onclick="marcheaza('altceva')">Trimite</button>
+  </div>
+  <button class="btn gri" onclick="dlgStatus.close()">Renunta</button>
+</dialog>
+
+<!-- mesaj simplu -->
+<dialog id="dlgMesaj">
+  <h2 id="msgTitlu"></h2>
+  <p id="msgText"></p>
+  <div class="rand2" id="msgButoane"></div>
+</dialog>
+
+<script>
+// ================== CONFIGURARE ==================
+var SERVER_URL = 'https://script.google.com/macros/s/AKfycbwWNLktAcTya9DyfQSsj6TCcKOydvluAazASeDadCMALwdaDUPXW2Wjalo46MM60HI/exec';
+var API_KEY = 'bc2026x7k9m2';
+var RAZA_AICI_M = 250;          // "Esti la" cand esti la mai putin de 250 m de un magazin
+// =================================================
+
+var P = new URLSearchParams(location.search);
+var ZONA = (P.get('zona') || P.get('tableta') || '03').replace(/^0+/, '').padStart(2, '0');
+var APP = window.TraseuOptim || null;     // puntea spre aplicatia Android (lipseste in browser)
+var ETICHETE = { fost: 'A fost', retur: 'Doar retur', nuvrea: 'Nu vrea marfa', inchis: 'Inchis', altceva: 'Altceva' };
+
+var zona = null;          // { titlu, active: [...], standby: [...] }
+var poz = null;           // { lat, lon, acc, t }
+var magAici = null;       // magazinul la care se afla acum
+var magStatus = null;     // magazinul din fereastra de status
+
+function $(i) { return document.getElementById(i); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+function azi() { var d = new Date(); return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()); }
+function p2(n) { return (n < 10 ? '0' : '') + n; }
+function acum() { var d = new Date(); return azi() + ' ' + p2(d.getHours()) + ':' + p2(d.getMinutes()) + ':' + p2(d.getSeconds()); }
+function ora(ms) { var d = new Date(ms); return p2(d.getHours()) + ':' + p2(d.getMinutes()); }
+
+function citeste(k, implicit) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : implicit; } catch (e) { return implicit; } }
+function scrie(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+
+function agent() { return citeste('to_agent', '') || P.get('agent') || ''; }
+function tura() { return citeste('to_tura', null); }                  // { start_ms, km_start, zi }
+function vizite() { return citeste('to_vizite_' + azi(), {}); }        // cod -> { st, t }
+function inTura() { return APP ? APP.esteInTura() : !!tura(); }
+
+// ---------------- Pornire ----------------
+function init() {
+  if (APP && APP.versiuneAplicatie) $('stVer').textContent = 'app ' + APP.versiuneAplicatie() + ' / pagina 1.0';
+  if (!agent()) { comuta('ecranNume'); $('numeAgent').value = P.get('agent') || ''; }
+  else afiseaza();
+  fetch('zone.json?t=' + Date.now()).then(function (r) { return r.json(); }).then(function (d) {
+    zona = d.zone[ZONA];
+    if (!zona) { banner('rau', 'Zona ' + ZONA + ' nu exista in zone.json'); return; }
+    afiseaza();
+  }).catch(function () { banner('rau', 'Nu pot incarca lista de magazine. Verifica internetul.'); });
+  if (navigator.geolocation) {
+    navigator.geolocation.watchPosition(function (p) {
+      poz = { lat: p.coords.latitude, lon: p.coords.longitude, acc: Math.round(p.coords.accuracy), t: Date.now() };
+      if (inTura()) deseneazaLista();
+      actualizeazaSubsol();
+    }, function () {}, { enableHighAccuracy: true, maximumAge: 15000, timeout: 30000 });
+  }
+  setInterval(actualizeazaSubsol, 5000);
+  setInterval(trimiteCoada, 20000);
+  window.addEventListener('online', trimiteCoada);
+}
+window.laRevenire = function () { afiseaza(); trimiteCoada(); };
+window.dupaPermisiuni = function () { afiseaza(); };
+
+function salveazaNume() {
+  var n = $('numeAgent').value.replace(/^\s+|\s+$/g, '');
+  if (n.length < 2) { $('eroareNume').textContent = 'Scrie numele.'; return; }
+  scrie('to_agent', n);
+  afiseaza();
+}
+
+function comuta(id) {
+  ['ecranNume', 'ecranOff', 'ecranOn'].forEach(function (e) { $(e).classList.toggle('ascuns', e !== id); });
+}
+
+function banner(tip, text) {
+  var b = $('banner');
+  if (!text) { b.className = 'ascuns'; return; }
+  b.className = tip; b.textContent = text;
+}
+
+function afiseaza() {
+  if (!agent()) return;
+  var t = tura();
+  $('antetSub').textContent = agent() + (zona ? ' · ' + zona.titlu : '');
+  if (!APP) banner('info', 'Esti in browser: traseul NU se inregistreaza. Foloseste aplicatia TraseuOptim.');
+  else if (!APP.areLocatie()) banner('rau', 'Aplicatia nu are voie la locatie. Apasa aici si alege "Permite".');
+  else if (!APP.gpsPornit()) banner('rau', 'GPS-ul e oprit. Apasa aici ca sa-l pornesti.');
+  else banner('', '');
+  $('banner').onclick = function () {
+    if (APP && !APP.areLocatie()) APP.cerePermisiuniDinNou();
+    else if (APP && !APP.gpsPornit()) APP.deschideSetariLocatie();
+  };
+  if (inTura()) {
+    comuta('ecranOn');
+    $('antetDr').innerHTML = t ? 'tura de la<b>' + ora(t.start_ms) + '</b>' : '';
+    deseneazaLista();
+  } else {
+    comuta('ecranOff');
+    $('antetDr').textContent = '';
+    deseneazaRezumat();
+  }
+}
+
+// ---------------- Lista magazinelor ----------------
+function distM(a, b, c, d) {
+  var R = 6371000, x = (c - a) * Math.PI / 180, y = (d - b) * Math.PI / 180;
+  var h = Math.sin(x / 2) * Math.sin(x / 2) + Math.cos(a * Math.PI / 180) * Math.cos(c * Math.PI / 180) * Math.sin(y / 2) * Math.sin(y / 2);
+  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+function pozitieCurenta() {
+  if (poz && Date.now() - poz.t < 120000) return poz;
+  if (APP) { try { var u = JSON.parse(APP.ultimaPozitie() || 'null'); if (u) return u; } catch (e) {} }
+  return poz;
+}
+function textDist(m) { return m == null ? '' : (m < 1000 ? Math.round(m) + ' m' : (m / 1000).toFixed(m < 10000 ? 1 : 0) + ' km'); }
+
+function deseneazaLista() {
+  if (!zona) { $('lista').innerHTML = '<div class="card">Se incarca magazinele...</div>'; return; }
+  var f = $('cauta').value.toLowerCase(), p = pozitieCurenta(), viz = vizite();
+  var toate = zona.active.map(function (s) { return { s: s, oprit: false }; })
+    .concat(zona.standby.map(function (s) { return { s: s, oprit: true }; }));
+  toate.forEach(function (o) { o.d = (p && o.s.lat) ? distM(p.lat, p.lon, o.s.lat, o.s.lon) : null; });
+  toate.sort(function (a, b) {
+    if (a.oprit !== b.oprit) return a.oprit ? 1 : -1;
+    if (a.d == null) return 1; if (b.d == null) return -1;
+    return a.d - b.d;
+  });
+  // magazinul la care se afla acum
+  magAici = null;
+  if (toate.length && toate[0].d != null && toate[0].d <= RAZA_AICI_M && !toate[0].oprit) magAici = toate[0].s;
+  $('aici').classList.toggle('ascuns', !magAici);
+  if (magAici) {
+    $('aiciNume').textContent = magAici.nume;
+    var v = viz[magAici.cod];
+    $('aiciDet').textContent = 'cod ' + magAici.cod + ' · la ' + textDist(toate[0].d) + (v ? ' · marcat deja: ' + ETICHETE[v.st] + ' la ' + ora(v.t) : '');
+  }
+  var html = '', facute = 0;
+  toate.forEach(function (o) {
+    var s = o.s, v = viz[s.cod];
+    if (v) facute++;
+    if (f && (s.nume + ' ' + s.cod).toLowerCase().indexOf(f) < 0) return;
+    html += '<div class="mag' + (v ? ' facut' : '') + (o.oprit ? ' oprit' : '') + '" onclick="deschideStatusCod(\'' + esc(s.cod) + '\')">' +
+      '<div class="info"><div class="nume">' + esc(s.nume) + '</div><div class="det">cod ' + esc(s.cod) +
+      (o.oprit ? ' · nu se livreaza' : '') + (s.lat ? '' : ' · fara GPS') + '</div></div>' +
+      (v ? '<span class="stare st-' + v.st + '">' + ETICHETE[v.st] + ' ' + ora(v.t) + '</span>' : '<span class="dist">' + textDist(o.d) + '</span>') +
+      (s.lat ? '<button class="waze" onclick="event.stopPropagation(); waze(\'' + esc(s.cod) + '\')">Waze</button>' : '') + '</div>';
+  });
+  $('lista').innerHTML = html || '<div class="card">Nimic gasit</div>';
+  $('titluLista').textContent = 'Magazinele zonei · vizitate azi: ' + facute + (p ? ' · cele mai apropiate primele' : ' · astept pozitia GPS...');
+}
+
+function gasesteMag(cod) {
+  if (!zona) return null;
+  var t = zona.active.concat(zona.standby);
+  for (var i = 0; i < t.length; i++) if (String(t[i].cod) === String(cod)) return t[i];
+  return null;
+}
+function waze(cod) {
+  var s = gasesteMag(cod); if (!s) return;
+  trimite('NAVIGARE', s, '');
+  location.href = 'https://waze.com/ul?ll=' + s.lat + ',' + s.lon + '&navigate=yes';
+}
+
+// ---------------- Vizita la magazin ----------------
+function deschideStatusCod(cod) { deschideStatus(gasesteMag(cod)); }
+function deschideStatus(s) {
+  if (!s) return;
+  magStatus = s;
+  var p = pozitieCurenta(), v = vizite()[s.cod];
+  $('stTitlu').textContent = s.nume;
+  $('stText').textContent = 'cod ' + s.cod + (p && s.lat ? ' · esti la ' + textDist(distM(p.lat, p.lon, s.lat, s.lon)) : '') +
+    (v ? ' · marcat deja: ' + ETICHETE[v.st] + ' la ' + ora(v.t) : '');
+  $('zonaAltceva').classList.add('ascuns');
+  $('notaAltceva').value = ''; $('eroareAltceva').textContent = '';
+  $('dlgStatus').showModal();
+}
+function arataAltceva() { $('zonaAltceva').classList.remove('ascuns'); $('notaAltceva').focus(); }
+function marcheaza(st) {
+  var s = magStatus; if (!s) return;
+  var nota = ETICHETE[st];
+  if (st === 'altceva') {
+    var t = $('notaAltceva').value.replace(/^\s+|\s+$/g, '');
+    if (!t) { $('eroareAltceva').textContent = 'Scrie ce s-a intamplat.'; return; }
+    nota += ': ' + t;
+  }
+  var viz = vizite(); viz[s.cod] = { st: st, t: Date.now() }; scrie('to_vizite_' + azi(), viz);
+  trimite('VIZITA', s, nota);
+  $('dlgStatus').close();
+  $('cauta').value = '';
+  deseneazaLista();
+}
+
+// ---------------- Inceput / sfarsit de tura ----------------
+function cereKm(titlu, text, minim, cb) {
+  $('kmTitlu').textContent = titlu; $('kmText').textContent = text;
+  $('kmCamp').value = ''; $('kmEroare').textContent = '';
+  $('kmOk').onclick = function () {
+    var km = parseInt($('kmCamp').value, 10);
+    if (!(km > 0)) { $('kmEroare').textContent = 'Scrie kilometrii de la bord.'; return; }
+    if (minim && km < minim) { $('kmEroare').textContent = 'Nu poate fi mai mic decat la plecare (' + minim + ').'; return; }
+    if (minim && km - minim > 1500) { $('kmEroare').textContent = 'Peste 1500 km intr-o tura? Verifica cifra.'; return; }
+    $('dlgKm').close(); cb(km);
+  };
+  $('dlgKm').showModal();
+  setTimeout(function () { $('kmCamp').focus(); }, 50);
+}
+
+function mesaj(titlu, text, butoane) {
+  $('msgTitlu').textContent = titlu; $('msgText').textContent = text;
+  var b = $('msgButoane'); b.innerHTML = '';
+  butoane.forEach(function (x) {
+    var e = document.createElement('button'); e.className = 'btn ' + (x.cls || 'gri'); e.textContent = x.text;
+    e.onclick = function () { $('dlgMesaj').close(); if (x.cb) x.cb(); };
+    b.appendChild(e);
+  });
+  $('dlgMesaj').showModal();
+}
+
+function cereKmPlecare() {
+  if (APP && !APP.areLocatie()) { APP.cerePermisiuniDinNou(); return; }
+  if (APP && !APP.gpsPornit()) {
+    mesaj('GPS oprit', 'Porneste locatia (GPS) pe telefon, apoi apasa din nou INCEPE TURA.',
+      [{ text: 'Deschide setarile', cls: 'albastru', cb: function () { APP.deschideSetariLocatie(); } }, { text: 'Inapoi' }]);
+    return;
+  }
+  if (APP && !APP.bateriaLiberata() && !citeste('to_baterie_intrebat', false)) {
+    scrie('to_baterie_intrebat', true);
+    mesaj('Un singur pas o data', 'Ca traseul sa se inregistreze si cu ecranul blocat, telefonul trebuie sa lase aplicatia sa mearga in fundal. La intrebarea care urmeaza alege "Permite".',
+      [{ text: 'Am inteles', cls: 'verde', cb: function () { APP.elibereazaBateria(); } }]);
+    return;
+  }
+  cereKm('Incepe tura', 'Cati km arata bordul masinii acum?', 0, function (km) {
+    scrie('to_tura', { start_ms: Date.now(), km_start: km, zi: azi() });
+    trimite('START_TURA', null, 'km plecare: ' + km);
+    if (APP && !APP.incepeTura(agent(), ZONA)) {
+      mesaj('Lipseste permisiunea', 'Aplicatia nu are voie la locatie, deci nu poate inregistra traseul.', [{ text: 'OK' }]);
+    }
+    afiseaza();
+  });
+}
+
+function cereKmSosire() {
+  var t = tura() || { km_start: 0, start_ms: Date.now() };
+  cereKm('Incheie tura (Off Duty)', 'Cati km arata bordul acum? La plecare: ' + (t.km_start || '-'), t.km_start || 0, function (km) {
+    var parcursi = t.km_start ? km - t.km_start : '';
+    var viz = vizite(), nr = {};
+    Object.keys(viz).forEach(function (c) { nr[viz[c].st] = (nr[viz[c].st] || 0) + 1; });
+    trimite('SFARSIT_TURA', null, 'km sosire: ' + km + (parcursi !== '' ? '; parcursi: ' + parcursi : '') + '; vizite: ' + Object.keys(viz).length);
+    scrie('to_ultima_tura', { start_ms: t.start_ms, stop_ms: Date.now(), km_start: t.km_start, km_stop: km, vizite: Object.keys(viz).length, pe_status: nr });
+    scrie('to_tura', null);
+    if (APP) APP.incheieTura();
+    afiseaza();
+  });
+}
+
+function deseneazaRezumat() {
+  var u = citeste('to_ultima_tura', null);
+  $('cardRezumat').classList.toggle('ascuns', !u);
+  if (!u) return;
+  var r = '<tr><td>Interval</td><td>' + ora(u.start_ms) + ' - ' + ora(u.stop_ms) + '</td></tr>' +
+    '<tr><td>Km bord</td><td>' + (u.km_start || '-') + ' → ' + u.km_stop + (u.km_start ? ' (' + (u.km_stop - u.km_start) + ' km)' : '') + '</td></tr>' +
+    '<tr><td>Magazine vizitate</td><td>' + u.vizite + '</td></tr>';
+  Object.keys(u.pe_status || {}).forEach(function (k) { r += '<tr><td>&nbsp;&nbsp;' + ETICHETE[k] + '</td><td>' + u.pe_status[k] + '</td></tr>'; });
+  $('rezumatTura').innerHTML = r;
+}
+
+// ---------------- Evenimente catre server (coada offline) ----------------
+function trimite(tip, s, nota) {
+  var p = pozitieCurenta();
+  pushCoada({
+    client_time: acum(), route: 'AGENT ' + agent(), date: azi(), seq: '',
+    store_code: s ? s.cod : '', event_type: tip,
+    lat: p ? p.lat : '', lon: p ? p.lon : '', accuracy_m: p ? p.acc : '',
+    note: nota || '', device_info: 'TraseuOptim ' + agent() + (APP ? '' : ' (browser)')
+  });
+  trimiteCoada();
+}
+function pushCoada(ev) { var c = citeste('to_coada', []); c.push(ev); if (c.length > 1000) c = c.slice(-1000); scrie('to_coada', c); actualizeazaSubsol(); }
+var seTrimite = false;
+function trimiteCoada() {
+  if (seTrimite) return;
+  var c = citeste('to_coada', []); if (!c.length) return;
+  seTrimite = true;
+  var lot = c.slice(0, 50);
+  fetch(SERVER_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+    body: JSON.stringify({ action: 'events_batch', key: API_KEY, events: lot }) })
+    .then(function (r) { return r.json(); }).then(function (d) {
+      seTrimite = false;
+      if (d.ok) { scrie('to_coada', citeste('to_coada', []).slice(lot.length)); actualizeazaSubsol(); if (citeste('to_coada', []).length) setTimeout(trimiteCoada, 500); }
+    }).catch(function () { seTrimite = false; });
+}
+
+// ---------------- Subsol ----------------
+function actualizeazaSubsol() {
+  var p = pozitieCurenta(), g = $('stGps');
+  if (p && Date.now() - p.t < 180000) { g.textContent = 'GPS: ok (±' + p.acc + ' m)'; g.className = ''; }
+  else { g.textContent = 'GPS: astept...'; g.className = inTura() ? 'rau' : ''; }
+  var n = $('stNet'); n.textContent = navigator.onLine ? 'Net: ok' : 'Net: lipsa'; n.className = navigator.onLine ? '' : 'rau';
+  var q = citeste('to_coada', []).length + (APP ? APP.puncteNetrimise() : 0);
+  $('stCoada').textContent = q ? 'De trimis: ' + q : '';
+}
+
+init();
+</script>
+</body>
+</html>
