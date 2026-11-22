@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ro"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zona mea - magazine active</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;font:15px Arial,sans-serif;color:#1c2430;background:#f4f6f9}
+header{background:#1c2430;color:#fff;padding:8px 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}header b{font-size:17px}header small{opacity:.75}
+#wrap{display:flex;flex-direction:column;height:calc(100vh - 44px)}#map{flex:1 1 55%;min-height:260px}#side{flex:1 1 45%;overflow:auto;background:#fff;border-top:2px solid #1c2430}
+@media(min-width:900px){#wrap{flex-direction:row}#map{flex:1 1 62%}#side{flex:1 1 38%;border-top:0;border-left:2px solid #1c2430}}
+#q{width:calc(100% - 16px);margin:8px;padding:9px;font-size:16px;border:1px solid #bbb;border-radius:6px}
+.it{padding:8px 10px;border-bottom:1px solid #e3e6ea;cursor:pointer}.it:active,.it.sel{background:#e8f1ff}.it b{font-size:15px}.it .m{color:#556;font-size:13px}.it .s{color:#223;font-size:12px;margin-top:2px}
+.cap{display:inline-block;background:#e4f4e8;color:#1e7b3a;border-radius:4px;padding:0 6px;font-weight:bold;margin-left:6px}
+.sbh{background:#000;color:#fff;font-weight:bold;text-align:center;padding:8px;font-size:15px}
+.sb{padding:8px 10px;border-bottom:2px solid #000;background:#f7d3d3;font-weight:bold;cursor:pointer}.sb span{float:right;color:#a00}
+.btn{display:inline-block;margin:4px 4px 0 0;padding:6px 10px;border-radius:5px;color:#fff;text-decoration:none;font-size:14px}.g{background:#1a73e8}.w{background:#33ccff;color:#000}
+.leaflet-popup-content{font-size:14px}.xm{color:#d6321f;font-weight:bold}
+</style></head><body>
+<header><b id="t">Zona mea</b><small id="st">se incarca...</small></header>
+<div id="wrap"><div id="map"></div><div id="side"><input id="q" placeholder="cauta magazin sau cod"><div id="list"></div></div></div>
+<script>
+var ZONE_FILE='zone.json';
+var P=new URLSearchParams(location.search),TAB=(P.get('tableta')||P.get('zona')||'').replace(/^0+/,'').padStart(2,'0');
+var $=function(i){return document.getElementById(i)};
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+var MAP,MK={},DATA=null;
+function nav(s){return '<a class="btn g" href="https://www.google.com/maps/dir/?api=1&destination='+s.lat+','+s.lon+'&travelmode=driving" target="_blank">Google Maps</a><a class="btn w" href="https://waze.com/ul?ll='+s.lat+','+s.lon+'&navigate=yes" target="_blank">Waze</a>'}
+function pop(s){return '<b>'+esc(s.cod)+' '+esc(s.nume)+'</b><br>medie '+s.med+' buc/sapt'+(s.prod&&s.prod.length?'<br><small>'+s.prod.map(function(p){return esc(p[0])+' '+p[1]}).join(' &middot; ')+'</small>':'')+'<br>'+nav(s)}
+function build(z){
+  $('t').textContent=z.titlu+' - '+z.active.length+' magazine active';
+  $('st').textContent='actualizat '+z.data+(z.standby.length?' · '+z.standby.length+' fara marfa':'');
+  MAP=L.map('map');var st=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,attribution:'Esri'}).addTo(MAP),
+  sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,attribution:'Esri'});L.control.layers({'Harta':st,'Satelit':sat}).addTo(MAP);
+  var pts=[];
+  z.active.forEach(function(s){if(!s.lat)return;var m=L.circleMarker([s.lat,s.lon],{radius:Math.max(6,Math.min(15,4+Math.sqrt(s.med))),color:'#fff',weight:1.5,fillColor:'#1e9e4a',fillOpacity:.9}).addTo(MAP).bindPopup(pop(s));MK[s.cod]=m;pts.push([s.lat,s.lon])});
+  z.standby.forEach(function(s){if(!s.lat)return;var ic=L.divIcon({className:'',html:'<div class="xm" style="font-size:22px;line-height:22px;text-shadow:0 0 3px #fff,0 0 3px #fff">&#10006;</div>',iconSize:[22,22],iconAnchor:[11,11]});
+    var m=L.marker([s.lat,s.lon],{icon:ic}).addTo(MAP).bindPopup('<b>'+esc(s.cod)+' '+esc(s.nume)+'</b><br><span class="xm">Nu se livreaza!</span>');MK[s.cod]=m;pts.push([s.lat,s.lon])});
+  if(pts.length)MAP.fitBounds(pts,{padding:[20,20]});else MAP.setView([44.43,26.1],10);
+  if(navigator.geolocation)navigator.geolocation.watchPosition(function(p){if(!window.ME)window.ME=L.circleMarker([0,0],{radius:8,color:'#fff',fillColor:'#1a73e8',fillOpacity:1,weight:3}).addTo(MAP);window.ME.setLatLng([p.coords.latitude,p.coords.longitude])},function(){},{enableHighAccuracy:true});
+  draw('');$('q').oninput=function(){draw(this.value)}}
+function draw(f){f=f.toLowerCase();var h='',n=0;
+  DATA.active.forEach(function(s){if(f&&(s.nume+' '+s.cod).toLowerCase().indexOf(f)<0)return;n++;
+    h+='<div class="it" onclick="go(\''+s.cod+'\')"><b>'+esc(s.nume)+'</b><span class="cap">'+s.med+'</span><div class="m">cod '+esc(s.cod)+(s.lat?'':' · <i>fara GPS</i>')+'</div>'+(s.prod&&s.prod.length?'<div class="s">'+s.prod.map(function(p){return esc(p[0])+' <b>'+p[1]+'</b>'}).join(' &middot; ')+'</div>':'')+'</div>'});
+  var sb=DATA.standby.filter(function(s){return !f||(s.nume+' '+s.cod).toLowerCase().indexOf(f)>=0});
+  if(sb.length){h+='<div class="sbh">NU SE MAI LIVREAZA MARFA ('+sb.length+')</div>'+sb.map(function(s){return '<div class="sb" onclick="go(\''+s.cod+'\')">'+esc(s.nume)+'<span>Nu se livreaza!</span></div>'}).join('')}
+  $('list').innerHTML=h||'<div class="it">Nimic gasit</div>'}
+function go(c){var m=MK[c];if(!m)return;MAP.setView(m.getLatLng(),Math.max(MAP.getZoom(),15));m.openPopup();window.scrollTo(0,0)}
+fetch(ZONE_FILE+'?t='+Date.now()).then(function(r){return r.json()}).then(function(d){
+  DATA=d.zone[TAB];if(!DATA){$('st').textContent='Zona "'+TAB+'" nu exista. Foloseste ?tableta=01 / 02 / 04';return}
+  build(DATA)}).catch(function(e){$('st').textContent='Nu pot incarca lista: '+e})
+</script></body></html>
