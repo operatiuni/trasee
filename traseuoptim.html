@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#1a1a2e">
 <title>TraseuOptim</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
 <style>
   /* TraseuOptim v1.0 - tura agentului: km, vizite la magazine, urmarire GPS (in aplicatia Android) */
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -57,6 +58,19 @@
   .rand2 { display: flex; gap: 10px; } .rand2 .btn { flex: 1; }
   .ascuns { display: none !important; }
   .rezumat td { padding: 4px 8px 4px 0; font-size: 16px; } .rezumat td:last-child { font-weight: 800; }
+  /* harta */
+  #hartaBox { position: relative; height: 38vh; min-height: 220px; border-radius: 14px; overflow: hidden; margin-bottom: 12px; background: #dfe6e2; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
+  #hartaBox.restransa { display: none; }
+  #harta { position: absolute; inset: 0; }
+  #hartaBara { position: absolute; top: 8px; right: 8px; z-index: 500; display: flex; flex-direction: column; gap: 6px; }
+  #hartaBara button { background: #fff; color: #1a1a2e; border: 1px solid #c4c4d0; border-radius: 10px; font-size: 14px; font-weight: 700; padding: 9px 12px; min-height: 44px; box-shadow: 0 1px 4px rgba(0,0,0,.18); }
+  #hartaBara .principal { background: #1560bd; color: #fff; border-color: #1560bd; }
+  .pinM { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; background: #1560bd; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+  .pinM.facut { background: #1d7a46; } .pinM.retur { background: #cf6b12; } .pinM.nuvrea { background: #b3261e; }
+  .pinM.inchis { background: #5c5c70; } .pinM.altceva { background: #6a3d9a; } .pinM.oprit { background: #b0b0bc; }
+  .tipPunct.ales { background: #6a3d9a; color: #fff; }
+  .pinP { width: 20px; height: 20px; border-radius: 4px; transform: rotate(45deg); border: 2px solid #fff; background: #6a3d9a; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+  .comutaHarta { width: 100%; border: 1px solid #c4c4d0; background: #fff; border-radius: 10px; padding: 10px; font-size: 15px; font-weight: 700; color: #1560bd; margin-bottom: 10px; }
 </style>
 </head>
 <body>
@@ -96,6 +110,15 @@
 
   <!-- On Duty -->
   <div id="ecranOn" class="ascuns">
+    <button class="comutaHarta" id="btnHarta" onclick="comutaHarta()">Ascunde harta</button>
+    <div id="hartaBox">
+      <div id="harta"></div>
+      <div id="hartaBara">
+        <button class="principal" onclick="undeSunt()">Unde sunt</button>
+        <button onclick="toateMagazinele()">Toata zona</button>
+        <button onclick="deschidePunct(null)">+ Punct</button>
+      </div>
+    </div>
     <div class="card ascuns" id="aici">
       <div class="eticheta">Esti la</div>
       <div class="mare" id="aiciNume"></div>
@@ -106,13 +129,12 @@
     <div class="titluLista" id="titluLista">Magazinele zonei, cele mai apropiate primele</div>
     <div id="lista"></div>
     <button class="btn rosu" style="margin-top:16px" onclick="cereKmSosire()">INCHEIE TURA (Off Duty)</button>
-    <button class="btn gri" onclick="location.href='zona.html?tableta='+ZONA">Harta zonei</button>
   </div>
 </div>
 
 <div id="subsol">
   <span id="stGps">GPS: -</span><span id="stNet">Net: -</span><span id="stCoada"></span>
-  <span class="ver" id="stVer">v1.0</span>
+  <span class="ver" id="stVer">v1.2</span>
 </div>
 
 <!-- km -->
@@ -141,6 +163,22 @@
   <button class="btn gri" onclick="dlgStatus.close()">Renunta</button>
 </dialog>
 
+<!-- punct nou pe harta -->
+<dialog id="dlgPunct">
+  <h2>Punct nou</h2>
+  <p id="ptUnde"></p>
+  <div class="rand2" style="flex-wrap:wrap">
+    <button class="btn gri tipPunct" data-tip="magazin_nou" onclick="alegeTip(this)">Magazin nou</button>
+    <button class="btn gri tipPunct" data-tip="corectie" onclick="alegeTip(this)">Corectie magazin</button>
+  </div>
+  <button class="btn gri tipPunct" data-tip="alt_punct" onclick="alegeTip(this)">Alt punct</button>
+  <select id="ptMagazin" class="ascuns" style="width:100%;font-size:17px;padding:12px;margin-top:12px;border:2px solid #c4c4d0;border-radius:10px"></select>
+  <input id="ptNume" type="text" placeholder="denumire (ex: Mini Market Ana)">
+  <textarea id="ptComentariu" placeholder="comentariu: ce e aici, cu cine ai vorbit, ce trebuie corectat"></textarea>
+  <div class="eroare" id="ptEroare"></div>
+  <div class="rand2"><button class="btn mov" onclick="salveazaPunct()">Salveaza punctul</button><button class="btn gri" onclick="dlgPunct.close()">Renunta</button></div>
+</dialog>
+
 <!-- mesaj simplu -->
 <dialog id="dlgMesaj">
   <h2 id="msgTitlu"></h2>
@@ -148,6 +186,7 @@
   <div class="rand2" id="msgButoane"></div>
 </dialog>
 
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 // ================== CONFIGURARE ==================
 var SERVER_URL = 'https://script.google.com/macros/s/AKfycbwWNLktAcTya9DyfQSsj6TCcKOydvluAazASeDadCMALwdaDUPXW2Wjalo46MM60HI/exec';
@@ -182,7 +221,7 @@ function inTura() { return APP ? APP.esteInTura() : !!tura(); }
 
 // ---------------- Pornire ----------------
 function init() {
-  if (APP && APP.versiuneAplicatie) $('stVer').textContent = 'app ' + APP.versiuneAplicatie() + ' / pagina 1.0';
+  if (APP && APP.versiuneAplicatie) $('stVer').textContent = 'app ' + APP.versiuneAplicatie() + ' / pagina 1.2';
   if (!agent()) { comuta('ecranNume'); $('numeAgent').value = P.get('agent') || ''; }
   else afiseaza();
   fetch('zone.json?t=' + Date.now()).then(function (r) { return r.json(); }).then(function (d) {
@@ -194,10 +233,11 @@ function init() {
     navigator.geolocation.watchPosition(function (p) {
       poz = { lat: p.coords.latitude, lon: p.coords.longitude, acc: Math.round(p.coords.accuracy), t: Date.now() };
       if (inTura()) deseneazaLista();
+      actualizeazaPunctMeu();
       actualizeazaSubsol();
     }, function () {}, { enableHighAccuracy: true, maximumAge: 15000, timeout: 30000 });
   }
-  setInterval(actualizeazaSubsol, 5000);
+  setInterval(function () { actualizeazaSubsol(); actualizeazaPunctMeu(); }, 5000);
   setInterval(trimiteCoada, 20000);
   window.addEventListener('online', trimiteCoada);
 }
@@ -236,6 +276,7 @@ function afiseaza() {
   if (inTura()) {
     comuta('ecranOn');
     $('antetDr').innerHTML = t ? 'tura de la<b>' + ora(t.start_ms) + '</b>' : '';
+    pregatesteHarta();
     deseneazaLista();
   } else {
     comuta('ecranOff');
@@ -289,6 +330,7 @@ function deseneazaLista() {
       (s.lat ? '<button class="waze" onclick="event.stopPropagation(); waze(\'' + esc(s.cod) + '\')">Waze</button>' : '') + '</div>';
   });
   $('lista').innerHTML = html || '<div class="card">Nimic gasit</div>';
+  deseneazaPinii(viz);
   $('titluLista').textContent = 'Magazinele zonei · vizitate azi: ' + facute + (p ? ' · cele mai apropiate primele' : ' · astept pozitia GPS...');
 }
 
@@ -302,6 +344,145 @@ function waze(cod) {
   var s = gasesteMag(cod); if (!s) return;
   trimite('NAVIGARE', s, '');
   location.href = 'https://waze.com/ul?ll=' + s.lat + ',' + s.lon + '&navigate=yes';
+}
+
+// ---------------- Harta: punctul meu + magazinele zonei ----------------
+var harta = null, stratMag = null, stratPuncte = null, punctMeu = null, cercMeu = null, pinMag = {}, incadrat = false;
+var urmaresc = true;          // harta il urmareste pe agent pana muta harta cu degetul
+var centratPeMine = false;    // prima pozitie primita centreaza harta
+
+function pregatesteHarta() {
+  if (!window.L) { $('btnHarta').classList.add('ascuns'); $('hartaBox').classList.add('ascuns'); return; }
+  if (harta) { setTimeout(function () { harta.invalidateSize(); }, 50); return; }
+  harta = L.map('harta', { zoomControl: true });
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom: 19, attribution: 'Tiles &copy; Esri' }).addTo(harta);
+  harta.setView([44.9, 25.9], 9);
+  stratMag = L.layerGroup().addTo(harta);
+  stratPuncte = L.layerGroup().addTo(harta);
+  harta.on('dragstart', function () { urmaresc = false; });
+  harta.on('contextmenu', function (e) { deschidePunct(e.latlng); });   // apasare lunga pe harta
+  deseneazaPuncte();
+  if (citeste('to_harta_ascunsa', false)) { $('hartaBox').classList.add('restransa'); $('btnHarta').textContent = 'Arata harta'; }
+  setTimeout(function () { harta.invalidateSize(); actualizeazaPunctMeu(); }, 100);
+}
+
+function comutaHarta() {
+  var box = $('hartaBox'); box.classList.toggle('restransa');
+  var ascunsa = box.classList.contains('restransa');
+  scrie('to_harta_ascunsa', ascunsa);
+  $('btnHarta').textContent = ascunsa ? 'Arata harta' : 'Ascunde harta';
+  if (!ascunsa && harta) setTimeout(function () { harta.invalidateSize(); }, 50);
+}
+
+function deseneazaPinii(viz) {
+  if (!harta || !zona) return;
+  var toate = zona.active.map(function (s) { return { s: s, oprit: false }; })
+    .concat(zona.standby.map(function (s) { return { s: s, oprit: true }; }));
+  toate.forEach(function (o) {
+    var s = o.s; if (!s.lat || !s.lon) return;
+    var v = viz[s.cod], cls = v ? (v.st === 'fost' ? 'facut' : v.st) : (o.oprit ? 'oprit' : '');
+    var ic = L.divIcon({ className: '', html: '<div class="pinM ' + cls + '"></div>', iconSize: [16, 16], iconAnchor: [8, 8] });
+    if (!pinMag[s.cod]) {
+      pinMag[s.cod] = L.marker([s.lat, s.lon], { icon: ic, title: s.nume }).addTo(stratMag);
+      pinMag[s.cod].on('click', function () { deschideStatus(s); });
+    } else pinMag[s.cod].setIcon(ic);
+  });
+  if (!incadrat) {
+    incadrat = true;
+    var p = pozitieCurenta();
+    if (p) harta.setView([p.lat, p.lon], 14); else toateMagazinele();
+  }
+}
+
+function actualizeazaPunctMeu() {
+  if (!harta) return;
+  var p = pozitieCurenta(); if (!p) return;
+  var ll = [p.lat, p.lon];
+  if (!punctMeu) {
+    cercMeu = L.circle(ll, { radius: p.acc || 30, color: '#187aff', weight: 1, fillOpacity: .1, interactive: false }).addTo(harta);
+    punctMeu = L.circleMarker(ll, { radius: 9, color: '#fff', weight: 3, fillColor: '#187aff', fillOpacity: 1, interactive: false }).addTo(harta);
+  } else { punctMeu.setLatLng(ll); cercMeu.setLatLng(ll).setRadius(p.acc || 30); }
+  if (!centratPeMine) { centratPeMine = true; incadrat = true; harta.setView(ll, 15); }
+  else if (urmaresc) harta.panTo(ll, { animate: true });
+}
+
+function undeSunt() {
+  if (!harta) return;
+  var p = pozitieCurenta();
+  if (!p) { mesaj('Inca nu am pozitia', 'Asteapta cateva secunde si verifica sa fie pornita locatia (GPS).', [{ text: 'OK' }]); return; }
+  if ($('hartaBox').classList.contains('restransa')) comutaHarta();
+  urmaresc = true;
+  actualizeazaPunctMeu();
+  harta.setView([p.lat, p.lon], Math.max(harta.getZoom(), 15));
+}
+
+// ---------------- Puncte noi (magazin nou, corectie, alt punct) ----------------
+var punctNou = null;   // { lat, lon, sursa }
+
+function deschidePunct(latlng) {
+  var p = pozitieCurenta();
+  if (latlng) punctNou = { lat: latlng.lat, lon: latlng.lng, sursa: 'ales pe harta' };
+  else if (p) punctNou = { lat: p.lat, lon: p.lon, sursa: 'pozitia mea' };
+  else { mesaj('Inca nu am pozitia', 'Asteapta GPS-ul sau apasa lung pe harta in locul dorit.', [{ text: 'OK' }]); return; }
+  $('ptUnde').textContent = (punctNou.sursa === 'pozitia mea' ? 'Unde esti acum' : 'Punctul ales pe harta') +
+    ' (' + punctNou.lat.toFixed(5) + ', ' + punctNou.lon.toFixed(5) + ')';
+  document.querySelectorAll('.tipPunct').forEach(function (b) { b.classList.remove('ales'); });
+  $('ptMagazin').classList.add('ascuns');
+  $('ptNume').value = ''; $('ptComentariu').value = ''; $('ptEroare').textContent = '';
+  // magazinele zonei, cele mai apropiate de punct primele (pentru corectie)
+  var opt = '<option value="">alege magazinul de corectat</option>';
+  if (zona) {
+    zona.active.concat(zona.standby).map(function (s) {
+      return { s: s, d: s.lat ? distM(punctNou.lat, punctNou.lon, s.lat, s.lon) : 1e9 };
+    }).sort(function (a, b) { return a.d - b.d; }).forEach(function (o) {
+      opt += '<option value="' + esc(o.s.cod) + '">' + esc(o.s.nume) + ' (cod ' + esc(o.s.cod) + (o.d < 1e9 ? ', ' + textDist(o.d) : '') + ')</option>';
+    });
+  }
+  $('ptMagazin').innerHTML = opt;
+  $('dlgPunct').showModal();
+}
+
+function alegeTip(b) {
+  document.querySelectorAll('.tipPunct').forEach(function (x) { x.classList.toggle('ales', x === b); });
+  $('ptMagazin').classList.toggle('ascuns', b.getAttribute('data-tip') !== 'corectie');
+}
+
+function salveazaPunct() {
+  var ales = document.querySelector('.tipPunct.ales');
+  if (!ales) { $('ptEroare').textContent = 'Alege tipul punctului.'; return; }
+  var tip = ales.getAttribute('data-tip'), cod = $('ptMagazin').value;
+  var nume = $('ptNume').value.replace(/^\s+|\s+$/g, ''), com = $('ptComentariu').value.replace(/^\s+|\s+$/g, '');
+  if (tip === 'corectie' && !cod) { $('ptEroare').textContent = 'Alege magazinul pe care il corectezi.'; return; }
+  if (!com && !nume) { $('ptEroare').textContent = 'Scrie o denumire sau un comentariu.'; return; }
+  var et = { magazin_nou: 'Magazin nou', corectie: 'Corectie magazin', alt_punct: 'Alt punct' }[tip];
+  var nota = et + (nume ? ': ' + nume : '') + (com ? ' | ' + com : '') + ' | ' + punctNou.sursa;
+  var s = cod ? gasesteMag(cod) : null;
+  trimite('PUNCT', s, nota, { lat: punctNou.lat, lon: punctNou.lon, acc: punctNou.sursa === 'pozitia mea' ? (pozitieCurenta() || {}).acc : '' });
+  var lista = citeste('to_puncte', []);
+  lista.push({ lat: punctNou.lat, lon: punctNou.lon, tip: et, nume: nume, com: com, cod: cod, t: Date.now() });
+  scrie('to_puncte', lista.slice(-200));
+  $('dlgPunct').close();
+  deseneazaPuncte();
+  mesaj('Punct salvat', et + ' a fost trimis la birou.', [{ text: 'OK', cls: 'verde' }]);
+}
+
+function deseneazaPuncte() {
+  if (!stratPuncte) return;
+  stratPuncte.clearLayers();
+  citeste('to_puncte', []).forEach(function (x) {
+    var ic = L.divIcon({ className: '', html: '<div class="pinP"></div>', iconSize: [20, 20], iconAnchor: [10, 10] });
+    L.marker([x.lat, x.lon], { icon: ic }).addTo(stratPuncte)
+      .bindPopup('<b>' + esc(x.tip) + (x.nume ? ': ' + esc(x.nume) : '') + '</b>' + (x.cod ? '<br>cod ' + esc(x.cod) : '') +
+        (x.com ? '<br>' + esc(x.com) : '') + '<br><small>' + esc(new Date(x.t).toLocaleString('ro-RO')) + '</small>');
+  });
+}
+
+function toateMagazinele() {
+  if (!harta || !zona) return;
+  var pts = zona.active.filter(function (s) { return s.lat; }).map(function (s) { return [s.lat, s.lon]; });
+  var p = pozitieCurenta(); if (p) pts.push([p.lat, p.lon]);
+  if (pts.length) harta.fitBounds(L.latLngBounds(pts), { padding: [30, 30] });
 }
 
 // ---------------- Vizita la magazin ----------------
@@ -408,8 +589,8 @@ function deseneazaRezumat() {
 }
 
 // ---------------- Evenimente catre server (coada offline) ----------------
-function trimite(tip, s, nota) {
-  var p = pozitieCurenta();
+function trimite(tip, s, nota, pozFortata) {
+  var p = pozFortata || pozitieCurenta();
   pushCoada({
     client_time: acum(), route: 'AGENT ' + agent(), date: azi(), seq: '',
     store_code: s ? s.cod : '', event_type: tip,
