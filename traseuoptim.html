@@ -65,7 +65,7 @@
   #hartaBara { position: absolute; top: 8px; right: 8px; z-index: 500; display: flex; flex-direction: column; gap: 6px; }
   #hartaBara button { background: #fff; color: #1a1a2e; border: 1px solid #c4c4d0; border-radius: 10px; font-size: 14px; font-weight: 700; padding: 9px 12px; min-height: 44px; box-shadow: 0 1px 4px rgba(0,0,0,.18); }
   #hartaBara .principal { background: #1560bd; color: #fff; border-color: #1560bd; }
-  .pinM { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; background: #1560bd; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+  .pinM { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; background: #1a1a2e; box-shadow: 0 1px 4px rgba(0,0,0,.45); }
   .pinM.facut { background: #1d7a46; } .pinM.retur { background: #cf6b12; } .pinM.nuvrea { background: #b3261e; }
   .pinM.inchis { background: #5c5c70; } .pinM.altceva { background: #6a3d9a; } .pinM.oprit { background: #b0b0bc; }
   .tipPunct.ales { background: #6a3d9a; color: #fff; }
@@ -134,7 +134,7 @@
 
 <div id="subsol">
   <span id="stGps">GPS: -</span><span id="stNet">Net: -</span><span id="stCoada"></span>
-  <span class="ver" id="stVer">v1.2</span>
+  <span class="ver" id="stVer">v1.3</span>
 </div>
 
 <!-- km -->
@@ -150,6 +150,11 @@
 <dialog id="dlgStatus">
   <h2 id="stTitlu"></h2>
   <p id="stText"></p>
+  <div class="rand2" id="stNavigare">
+    <button class="btn albastru" onclick="navigheazaSpre('waze')">Waze</button>
+    <button class="btn gri" onclick="navigheazaSpre('google')">Google Maps</button>
+  </div>
+  <p style="margin-top:12px;font-weight:700">Ce s-a intamplat la magazin?</p>
   <button class="btn verde" onclick="marcheaza('fost')">A fost (livrat)</button>
   <button class="btn portocaliu" onclick="marcheaza('retur')">Doar retur</button>
   <button class="btn rosu" onclick="marcheaza('nuvrea')">Nu vrea marfa</button>
@@ -221,7 +226,7 @@ function inTura() { return APP ? APP.esteInTura() : !!tura(); }
 
 // ---------------- Pornire ----------------
 function init() {
-  if (APP && APP.versiuneAplicatie) $('stVer').textContent = 'app ' + APP.versiuneAplicatie() + ' / pagina 1.2';
+  if (APP && APP.versiuneAplicatie) $('stVer').textContent = 'app ' + APP.versiuneAplicatie() + ' / pagina 1.3';
   if (!agent()) { comuta('ecranNume'); $('numeAgent').value = P.get('agent') || ''; }
   else afiseaza();
   fetch('zone.json?t=' + Date.now()).then(function (r) { return r.json(); }).then(function (d) {
@@ -355,8 +360,13 @@ function pregatesteHarta() {
   if (!window.L) { $('btnHarta').classList.add('ascuns'); $('hartaBox').classList.add('ascuns'); return; }
   if (harta) { setTimeout(function () { harta.invalidateSize(); }, 50); return; }
   harta = L.map('harta', { zoomControl: true });
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
-    { maxZoom: 19, attribution: 'Tiles &copy; Esri' }).addTo(harta);
+  var strada = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom: 19, attribution: 'Tiles &copy; Esri' });
+  var satelit = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom: 19, attribution: 'Tiles &copy; Esri' });
+  (citeste('to_strat', 'Harta') === 'Satelit' ? satelit : strada).addTo(harta);
+  L.control.layers({ 'Harta': strada, 'Satelit': satelit }, null, { position: 'bottomright' }).addTo(harta);
+  harta.on('baselayerchange', function (e) { scrie('to_strat', e.name); });
   harta.setView([44.9, 25.9], 9);
   stratMag = L.layerGroup().addTo(harta);
   stratPuncte = L.layerGroup().addTo(harta);
@@ -494,9 +504,18 @@ function deschideStatus(s) {
   $('stTitlu').textContent = s.nume;
   $('stText').textContent = 'cod ' + s.cod + (p && s.lat ? ' · esti la ' + textDist(distM(p.lat, p.lon, s.lat, s.lon)) : '') +
     (v ? ' · marcat deja: ' + ETICHETE[v.st] + ' la ' + ora(v.t) : '');
+  $('stNavigare').classList.toggle('ascuns', !s.lat);
   $('zonaAltceva').classList.add('ascuns');
   $('notaAltceva').value = ''; $('eroareAltceva').textContent = '';
   $('dlgStatus').showModal();
+}
+function navigheazaSpre(aplicatie) {
+  var s = magStatus; if (!s || !s.lat) return;
+  trimite('NAVIGARE', s, aplicatie === 'waze' ? 'Waze' : 'Google Maps');
+  $('dlgStatus').close();
+  location.href = aplicatie === 'waze'
+    ? 'https://waze.com/ul?ll=' + s.lat + ',' + s.lon + '&navigate=yes'
+    : 'https://www.google.com/maps/dir/?api=1&destination=' + s.lat + ',' + s.lon + '&travelmode=driving';
 }
 function arataAltceva() { $('zonaAltceva').classList.remove('ascuns'); $('notaAltceva').focus(); }
 function marcheaza(st) {
