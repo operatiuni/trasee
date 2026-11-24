@@ -98,8 +98,9 @@
   <div id="ecranNume" class="ascuns">
     <div class="card">
       <div class="eticheta">Bun venit</div>
-      <div class="mare">Cum te numesti?</div>
-      <input id="numeAgent" style="width:100%;font-size:20px;padding:12px;border:2px solid #c4c4d0;border-radius:10px;margin-top:8px" placeholder="ex: Catalin">
+      <div class="mare">Codul traseului</div>
+      <p style="margin:6px 0 0;color:#555">Scrie codul primit de la birou. Se cere o singura data.</p>
+      <input id="numeAgent" autocomplete="off" autocapitalize="characters" maxlength="12" style="width:100%;font-size:24px;letter-spacing:4px;text-align:center;text-transform:uppercase;padding:12px;border:2px solid #c4c4d0;border-radius:10px;margin-top:8px" placeholder="ex: AB12CD">
       <div class="eroare" id="eroareNume"></div>
       <button class="btn verde" onclick="salveazaNume()">CONTINUA</button>
     </div>
@@ -214,7 +215,8 @@ var RAZA_AICI_M = 250;          // "Esti la" cand esti la mai putin de 250 m de 
 // =================================================
 
 var P = new URLSearchParams(location.search);
-var ZONA = (P.get('zona') || P.get('tableta') || '03').replace(/^0+/, '').padStart(2, '0');
+var ZONA = String(P.get('zona') || P.get('tableta') || citeste0('to_zona') || '03').replace(/^0+/, '').padStart(2, '0');
+function citeste0(k) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : ''; } catch (e) { return ''; } }
 var APP = window.TraseuOptim || null;     // puntea spre aplicatia Android (lipseste in browser)
 var ETICHETE = { fost: 'A fost', retur: 'Doar retur', nuvrea: 'Nu vrea marfa', inchis: 'Inchis', altceva: 'Altceva' };
 
@@ -240,14 +242,10 @@ function inTura() { return APP ? APP.esteInTura() : !!tura(); }
 
 // ---------------- Pornire ----------------
 function init() {
-  if (APP && APP.versiuneAplicatie) $('stVer').textContent = 'app ' + APP.versiuneAplicatie() + ' / pagina 1.4';
-  if (!agent()) { comuta('ecranNume'); $('numeAgent').value = P.get('agent') || ''; }
+  if (APP && APP.versiuneAplicatie) $('stVer').textContent = 'app ' + APP.versiuneAplicatie() + ' / pagina 1.5';
+  if (!agent()) { comuta('ecranNume'); $('numeAgent').value = ''; }
   else afiseaza();
-  fetch('zone.json?t=' + Date.now()).then(function (r) { return r.json(); }).then(function (d) {
-    zona = d.zone[ZONA];
-    if (!zona) { banner('rau', 'Zona ' + ZONA + ' nu exista in zone.json'); return; }
-    afiseaza();
-  }).catch(function () { banner('rau', 'Nu pot incarca lista de magazine. Verifica internetul.'); });
+  incarcaZona();
   if (navigator.geolocation) {
     navigator.geolocation.watchPosition(function (p) {
       poz = { lat: p.coords.latitude, lon: p.coords.longitude, acc: Math.round(p.coords.accuracy), t: Date.now() };
@@ -260,14 +258,28 @@ function init() {
   setInterval(trimiteCoada, 20000);
   window.addEventListener('online', trimiteCoada);
 }
+function incarcaZona() {
+  fetch('zone.json?t=' + Date.now()).then(function (r) { return r.json(); }).then(function (d) {
+    zona = d.zone[ZONA];
+    if (!zona) { banner('rau', 'Zona ' + ZONA + ' nu exista in zone.json'); return; }
+    afiseaza();
+  }).catch(function () { banner('rau', 'Nu pot incarca lista de magazine. Verifica internetul.'); });
+}
 window.laRevenire = function () { afiseaza(); trimiteCoada(); };
 window.dupaPermisiuni = function () { afiseaza(); };
 
 function salveazaNume() {
-  var n = $('numeAgent').value.replace(/^\s+|\s+$/g, '');
-  if (n.length < 2) { $('eroareNume').textContent = 'Scrie numele.'; return; }
-  scrie('to_agent', n);
-  afiseaza();
+  var cod = $('numeAgent').value.replace(/\s+/g, '').toUpperCase();
+  if (cod.length < 4) { $('eroareNume').textContent = 'Scrie codul primit de la birou.'; return; }
+  $('eroareNume').textContent = 'Verific codul...';
+  fetch(SERVER_URL + '?action=cod_traseu&key=' + API_KEY + '&cod=' + encodeURIComponent(cod) + '&t=' + Date.now())
+    .then(function (r) { return r.json(); }).then(function (d) {
+      if (!d.ok) { $('eroareNume').textContent = 'Cod gresit. Verifica si incearca din nou.'; return; }
+      $('eroareNume').textContent = '';
+      scrie('to_zona', d.zona); scrie('to_traseu', d.traseu); scrie('to_agent', d.agent);
+      ZONA = String(d.zona).replace(/^0+/, '').padStart(2, '0');
+      zona = null; incarcaZona(); afiseaza();
+    }).catch(function () { $('eroareNume').textContent = 'Nu ma pot conecta. Verifica internetul si incearca din nou.'; });
 }
 
 function comuta(id) {
