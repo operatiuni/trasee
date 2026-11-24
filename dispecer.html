@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Unde sunt agentii</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,Roboto,Arial,sans-serif;background:#f2f2f5;color:#1a1a2e}
+#antet{background:#1a1a2e;color:#fff;padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+#antet h1{font-size:18px;margin:0}#antet .sub{font-size:12px;color:#b8b8cc}
+#antet input,#antet button{font-size:14px;padding:6px 10px;border-radius:8px;border:0}
+#antet button{background:#3b82f6;color:#fff;font-weight:600;cursor:pointer}
+#harta{height:55vh;min-height:300px}
+#lista{padding:10px;display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
+.card{background:#fff;border-radius:12px;padding:12px 14px;border-left:6px solid #888}
+.card h2{font-size:17px;margin:0 0 4px}.card .r{font-size:13px;color:#555;margin:3px 0}
+.card .mare{font-size:15px;font-weight:600;color:#1a1a2e;margin:4px 0}
+.vechi{color:#c0392b!important}.ok{color:#16a34a!important}
+.card a.btn{display:inline-block;margin-top:8px;font-size:13px;background:#4285F4;color:#fff;padding:5px 10px;border-radius:6px;text-decoration:none}
+.km{margin:6px 0;padding:8px 10px;border-radius:8px;background:#f1f5f9;font-size:14px}
+.km.rosu{background:#fee2e2;color:#991b1b;font-weight:600}
+.km.verde{background:#dcfce7;color:#14532d}
+.cnt{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
+.cnt span{font-size:12px;padding:2px 8px;border-radius:10px;color:#fff}
+.jurnal{list-style:none;margin:6px 0 0;padding:0;font-size:13px;max-height:420px;overflow:auto;border-top:1px solid #eee}
+.jurnal li{padding:5px 2px;border-bottom:1px solid #f0f0f0;display:flex;gap:8px;align-items:flex-start}
+.jurnal .o{font-variant-numeric:tabular-nums;color:#555;white-space:nowrap;min-width:84px}
+.jurnal .d{flex:1}
+.jurnal .x{font-size:12px;color:#777}
+.jurnal .warn{color:#b45309;font-weight:600}
+.jurnal .bad{color:#b91c1c;font-weight:600}
+.st{display:inline-block;font-size:11px;padding:1px 7px;border-radius:9px;color:#fff;margin-left:4px;vertical-align:1px}
+.gol{padding:24px;text-align:center;color:#666}
+.nr{background:#fff;border:2px solid #999;border-radius:50%;width:22px;height:22px;line-height:18px;text-align:center;font-size:11px;font-weight:700}
+.agent{border-radius:50%;width:34px;height:34px;line-height:30px;text-align:center;color:#fff;font-size:10px;font-weight:700;border:2px solid #fff;box-shadow:0 0 0 2px rgba(0,0,0,.35);overflow:hidden}
+.opr{width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.4)}
+.pinP{width:18px;height:18px;background:#7c3aed;border:2px solid #fff;transform:rotate(45deg);box-shadow:0 0 0 1px rgba(0,0,0,.4)}
+#poarta{position:fixed;inset:0;background:#1a1a2e;display:none;align-items:center;justify-content:center;z-index:5000}
+#poarta div{background:#fff;border-radius:14px;padding:22px;width:min(340px,90vw);text-align:center}
+#poarta input{font-size:22px;letter-spacing:4px;text-align:center;width:100%;padding:10px;border:2px solid #ccc;border-radius:10px;text-transform:uppercase;margin:12px 0}
+#poarta button{font-size:16px;padding:10px 22px;border:0;border-radius:10px;background:#16a34a;color:#fff;font-weight:700}
+#poarta .err{color:#b91c1c;font-size:14px;min-height:18px}
+@media(max-width:600px){#antet{padding:6px 10px}#antet h1{font-size:15px}#antet input,#antet button{font-size:12px;padding:4px 8px}#harta{height:50vh}#lista{padding:6px;gap:6px;grid-template-columns:1fr}.card{padding:9px 10px}}
+</style>
+</head>
+<body>
+<div id="poarta"><div>
+  <h2 style="margin:0">Unde sunt agentii</h2>
+  <p style="margin:8px 0 0;color:#555">Codul de acces (se cere o singura data pe acest dispozitiv)</p>
+  <input id="codIn" autocomplete="off" maxlength="20" onkeydown="if(event.key==='Enter')intra()">
+  <div class="err" id="codErr"></div>
+  <button onclick="intra()">Intra</button>
+</div></div>
+
+<div id="antet">
+  <div><h1>Unde sunt agentii</h1><div class="sub" id="stare">Se incarca...</div></div>
+  <div><input type="date" id="zi"> <button onclick="incarca(true)">Reimprospateaza</button></div>
+</div>
+<div id="harta"></div>
+<div id="lista"></div>
+
+<script>
+var SERVER_URL = 'https://script.google.com/macros/s/AKfycbwWNLktAcTya9DyfQSsj6TCcKOydvluAazASeDadCMALwdaDUPXW2Wjalo46MM60HI/exec';
+var API_KEY = 'bc2026x7k9m2';
+var VERSIUNE = '1.0';
+var CULORI = ['#e11d48', '#2563eb', '#16a34a', '#d97706', '#0891b2', '#be185d', '#4d7c0f', '#7c3aed'];
+var STATUS = {
+  'A fost': { c: '#16a34a', k: 'fost' }, 'Doar retur': { c: '#d97706', k: 'retur' },
+  'Nu vrea marfa': { c: '#dc2626', k: 'nuvrea' }, 'Inchis': { c: '#6b7280', k: 'inchis' }, 'Altceva': { c: '#2563eb', k: 'altceva' }
+};
+
+function $(id) { return document.getElementById(id); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+function citeste(k, d) { try { var v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } }
+function scrie(k, v) { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
+function p2(n) { return (n < 10 ? '0' : '') + n; }
+function azi() { var d = new Date(); return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()); }
+function hm(s) { return s ? String(s).substring(11, 16) : '-'; }
+function sec(s) { return new Date(String(s).replace(' ', 'T')).getTime() / 1000; }
+function dist(a, b) {
+  var R = 6371000, r = Math.PI / 180, dLa = (b.lat - a.lat) * r, dLo = (b.lon - a.lon) * r;
+  var x = Math.sin(dLa / 2) * Math.sin(dLa / 2) + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLo / 2) * Math.sin(dLo / 2);
+  return 2 * R * Math.asin(Math.sqrt(x));
+}
+function textDist(m) { return m < 1000 ? Math.round(m) + ' m' : (m / 1000).toFixed(1).replace('.', ',') + ' km'; }
+function statusDin(nota) {
+  var n = String(nota || '');
+  for (var k in STATUS) if (n.indexOf(k) === 0) return { eticheta: k, culoare: STATUS[k].c, rest: n.substring(k.length).replace(/^:\s*/, '') };
+  return { eticheta: n || 'vizita', culoare: '#2563eb', rest: '' };
+}
+
+// ---------------- cod de acces ----------------
+var COD = citeste('disp_cod', '');
+function arataPoarta(msg) { $('poarta').style.display = 'flex'; $('codErr').textContent = msg || ''; $('codIn').value = ''; setTimeout(function () { $('codIn').focus(); }, 50); }
+function intra() {
+  var c = $('codIn').value.replace(/\s+/g, '').toUpperCase();
+  if (!c) { $('codErr').textContent = 'Scrie codul.'; return; }
+  COD = c; scrie('disp_cod', c); $('poarta').style.display = 'none'; incarca(true);
+}
+
+// ---------------- harta ----------------
+var harta = L.map('harta').setView([44.43, 26.10], 11);
+var straturi = {
+  'Harta': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }),
+  'Satelit': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Esri' })
+};
+var stratAles = citeste('disp_strat', 'Harta');
+(straturi[stratAles] || straturi.Harta).addTo(harta);
+L.control.layers(straturi, null, { position: 'topright' }).addTo(harta);
+harta.on('baselayerchange', function (e) { scrie('disp_strat', e.name); });
+var strat = L.layerGroup().addTo(harta), primaData = true;
+
+// ---------------- magazine (zone.json + Stores) ----------------
+var ZONE = null, MAG = {};
+function incarcaZone() {
+  return fetch('zone.json?t=' + Date.now()).then(function (r) { return r.json(); }).then(function (d) { ZONE = d.zone || d; })
+    .catch(function () { ZONE = {}; });
+}
+function construiesteMagazine(dServer) {
+  MAG = {};
+  var m = dServer.magazine || {};
+  Object.keys(m).forEach(function (c) { MAG[c] = { cod: c, nume: m[c][0], lat: m[c][1], lon: m[c][2], zona: '' }; });
+  Object.keys(ZONE || {}).forEach(function (z) {
+    var zz = ZONE[z];
+    ['active', 'standby'].forEach(function (t) {
+      (zz[t] || []).forEach(function (s) { var c = String(s.cod), v = MAG[c]; if (s.lat || !v) MAG[c] = { cod: c, nume: s.nume, lat: s.lat || (v && v.lat) || null, lon: s.lon || (v && v.lon) || null, zona: z }; });
+    });
+  });
+}
+
+// ---------------- analiza unui agent TraseuOptim ----------------
+function analizeaza(a, data, st, acum) {
+  var pts = a.puncte.map(function (p) { return { lat: p[0], lon: p[1], t: data + ' ' + p[2], s: sec(data + ' ' + p[2]) }; });
+  var ev = a.evenimente;
+  var start = null, final = null, kmStart = null, kmStop = null;
+  ev.forEach(function (e) {
+    if (e.tip === 'START_TURA') { start = e; final = null; kmStop = null; var m = e.nota.match(/km plecare:\s*(\d+)/); kmStart = m ? Number(m[1]) : null; }
+    if (e.tip === 'SFARSIT_TURA') { final = e; var m2 = e.nota.match(/km sosire:\s*(\d+)/); kmStop = m2 ? Number(m2[1]) : null; }
+  });
+  var t0 = start ? sec(start.ora) - 60 : -Infinity, t1 = final ? sec(final.ora) + 60 : Infinity;
+  var p = pts.filter(function (q) { return q.s >= t0 && q.s <= t1; });
+
+  // opriri: puncte grupate pe o raza de 80 m, cel putin X minute
+  var minOpr = (st.oprire_min || 3) * 60, opriri = [], i = 0;
+  while (i < p.length) {
+    var j = i;
+    while (j + 1 < p.length && dist(p[i], p[j + 1]) < 80) j++;
+    var plec = p[j].s;
+    if (j + 1 < p.length) plec = Math.min(p[j + 1].s, p[j].s + 300);
+    var dur = plec - p[i].s;
+    if (dur >= minOpr) {
+      var la = 0, lo = 0;
+      for (var k = i; k <= j; k++) { la += p[k].lat; lo += p[k].lon; }
+      var c = { lat: la / (j - i + 1), lon: lo / (j - i + 1) };
+      opriri.push({ lat: c.lat, lon: c.lon, s0: p[i].s, s1: plec, i0: i, i1: j, sosire: p[i].t, min: Math.round(dur / 60), mag: celMaiAproape(c, st.raza_m || 150), vizite: [] });
+      i = j + 1;
+    } else i++;
+  }
+
+  // opriri vecine (pauza scurta intre ele, acelasi loc) = o singura oprire; GPS-ul "sare" in oras
+  for (var u = opriri.length - 1; u > 0; u--) {
+    var A = opriri[u - 1], B = opriri[u];
+    if (B.s0 - A.s1 <= 180 && dist(A, B) < 150) {
+      var na = A.i1 - A.i0 + 1, nb = B.i1 - B.i0 + 1;
+      A.lat = (A.lat * na + B.lat * nb) / (na + nb); A.lon = (A.lon * na + B.lon * nb) / (na + nb);
+      A.s1 = B.s1; A.i1 = B.i1; A.min = Math.round((A.s1 - A.s0) / 60); A.mag = celMaiAproape(A, st.raza_m || 150);
+      opriri.splice(u, 1);
+    }
+  }
+  // km GPS: fiecare oprire inlocuita cu centrul ei, ca sa nu se adune "tremuratul" pe loc
+  var traseu = [], o = 0;
+  for (var q = 0; q < p.length; q++) {
+    if (o < opriri.length && q === opriri[o].i0) { traseu.push(opriri[o]); q = opriri[o].i1; o++; continue; }
+    traseu.push(p[q]);
+  }
+  var km = 0;
+  for (var r = 1; r < traseu.length; r++) {
+    var d = dist(traseu[r - 1], traseu[r]);
+    var g = (traseu[r].s0 || traseu[r].s) - (traseu[r - 1].s1 || traseu[r - 1].s);
+    if (g > 0 && d / g > 45) continue;          // salt imposibil (peste 160 km/h)
+    km += d;
+  }
+  km = km / 1000;
+
+  // vizitele, legate de oprirea in care au fost marcate
+  var vizite = [], puncte = [];
+  ev.forEach(function (e) {
+    if (e.tip === 'PUNCT') { puncte.push(e); return; }
+    if (e.tip !== 'VIZITA') return;
+    var m = MAG[e.cod] || null, s = sec(e.ora);
+    var v = { e: e, mag: m, s: s, st: statusDin(e.nota), dm: (m && m.lat != null && e.lat != null) ? dist({ lat: e.lat, lon: e.lon }, m) : null, opr: null };
+    var best = null, bd = Infinity;
+    opriri.forEach(function (op) {
+      var dt = s < op.s0 ? op.s0 - s : (s > op.s1 ? s - op.s1 : 0);
+      if (dt > 600) return;
+      var dd = (m && m.lat != null) ? dist(op, m) : (e.lat != null ? dist(op, { lat: e.lat, lon: e.lon }) : 9999);
+      if (dd > 400) return;
+      var scor = dt + dd;
+      if (scor < bd) { bd = scor; best = op; }
+    });
+    if (best) { v.opr = best; best.vizite.push(v); }
+    vizite.push(v);
+  });
+  // marcari duble ale aceluiasi magazin: pastram ultima
+  var ultimul = {};
+  vizite.forEach(function (v) { ultimul[v.e.cod] = v; });
+  var unice = Object.keys(ultimul).map(function (c) { return ultimul[c]; });
+
+  var ultimaPoz = pts.length ? pts[pts.length - 1] : null;
+  return { start: start, final: final, kmStart: kmStart, kmStop: kmStop, km: km, opriri: opriri, vizite: vizite, unice: unice,
+           puncte: puncte, pts: pts, ultima: ultimaPoz, minUltima: ultimaPoz ? Math.round((sec(acum) - ultimaPoz.s) / 60) : null };
+}
+
+function celMaiAproape(c, raza) {
+  var best = null, bd = raza;
+  Object.keys(MAG).forEach(function (k) {
+    var m = MAG[k]; if (k === '999' || m.lat == null) return;
+    var d = dist(c, m); if (d < bd) { bd = d; best = m; }
+  });
+  if (!best && dist(c, { lat: 44.347042, lon: 26.083327 }) < 200) return { cod: '999', nume: 'Depozit Jilava', lat: 44.347042, lon: 26.083327 };
+  return best;
+}
+
+function zonaAgentului(r) {
+  var nr = {};
+  r.vizite.forEach(function (v) { if (v.mag && v.mag.zona) nr[v.mag.zona] = (nr[v.mag.zona] || 0) + 1; });
+  var z = Object.keys(nr).sort(function (a, b) { return nr[b] - nr[a]; })[0];
+  return z && ZONE[z] ? ZONE[z].titlu : '';
+}
+
+// ---------------- desen ----------------
+function iconNr(text, fond, chenar, culoareText) {
+  return L.divIcon({ className: '', html: '<div class="nr" style="background:' + fond + ';color:' + (culoareText || '#fff') + ';border-color:' + chenar + '">' + text + '</div>', iconSize: [22, 22], iconAnchor: [11, 11] });
+}
+function iconAgent(text, c) {
+  return L.divIcon({ className: '', html: '<div class="agent" style="background:' + c + '">' + esc(text) + '</div>', iconSize: [34, 34], iconAnchor: [17, 17] });
+}
+function linkMaps(lat, lon) { return '<a class="btn" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=' + lat + ',' + lon + '">Vezi pozitia in Google Maps</a>'; }
+
+function cardAgent(a, r, c, d) {
+  var st = d.setari || {}, lim = [];
+  // drumul
+  var linie = r.pts.map(function (q) { return [q.lat, q.lon]; });
+  if (linie.length > 1) L.polyline(linie, { color: c, weight: 4, opacity: .75 }).addTo(strat);
+  linie.forEach(function (q) { lim.push(q); });
+  // opriri fara vizita marcata
+  r.opriri.forEach(function (op) {
+    if (op.vizite.length) return;
+    var nume = op.mag ? (op.mag.cod + ' ' + op.mag.nume) : 'in afara magazinelor';
+    var ic = L.divIcon({ className: '', html: '<div class="opr" style="background:' + (op.mag ? '#f59e0b' : '#9ca3af') + '"></div>', iconSize: [14, 14], iconAnchor: [7, 7] });
+    L.marker([op.lat, op.lon], { icon: ic }).bindPopup('<b>Oprire ' + hm(op.sosire) + ' (' + op.min + ' min)</b><br>' + esc(nume) + '<br><i>nicio vizita marcata</i>').addTo(strat);
+  });
+  // vizitele (in ordinea marcarii, la magazin)
+  r.unice.sort(function (x, y) { return x.s - y.s; }).forEach(function (v, k) {
+    var poz = (v.mag && v.mag.lat != null) ? v.mag : (v.e.lat != null ? { lat: v.e.lat, lon: v.e.lon } : null);
+    if (!poz) return;
+    L.marker([poz.lat, poz.lon], { icon: iconNr(k + 1, v.st.culoare, '#fff'), zIndexOffset: 500 })
+      .bindPopup('<b>' + (k + 1) + '. ' + esc(v.e.cod + ' ' + (v.mag ? v.mag.nume : '')) + '</b><br>' + hm(v.e.ora) + ' &middot; ' + esc(v.e.nota) +
+        (v.dm != null ? '<br>marcat la ' + textDist(v.dm) + ' de magazin' : '')).addTo(strat);
+    lim.push([poz.lat, poz.lon]);
+  });
+  // puncte noi
+  r.puncte.forEach(function (e) {
+    if (e.lat == null) return;
+    var ic = L.divIcon({ className: '', html: '<div class="pinP"></div>', iconSize: [18, 18], iconAnchor: [9, 9] });
+    L.marker([e.lat, e.lon], { icon: ic }).bindPopup('<b>Punct ' + hm(e.ora) + '</b><br>' + esc(e.nota)).addTo(strat);
+  });
+  // pozitia curenta
+  if (r.ultima) {
+    L.marker([r.ultima.lat, r.ultima.lon], { icon: iconAgent(a.agent.substring(0, 6), c), zIndexOffset: 1000 })
+      .bindPopup('<b>' + esc(a.agent) + '</b><br>Ultima pozitie: ' + hm(r.ultima.t)).addTo(strat);
+    lim.push([r.ultima.lat, r.ultima.lon]);
+  }
+
+  // ---- cardul ----
+  var zona = zonaAgentului(r);
+  var h = '<div class="card" style="border-left-color:' + c + '"><h2>' + esc(a.agent) + (zona ? ' &middot; <span style="font-weight:400">' + esc(zona) + '</span>' : '') + '</h2>';
+  if (r.start) {
+    h += '<div class="r">Pornit: <b>' + hm(r.start.ora) + '</b>' + (r.kmStart != null ? ' &middot; km bord la plecare: <b>' + r.kmStart + '</b>' : '') + '</div>';
+    if (r.final) h += '<div class="r">Incheiat: <b>' + hm(r.final.ora) + '</b>' + (r.kmStop != null ? ' &middot; km bord la sosire: <b>' + r.kmStop + '</b>' : '') + '</div>';
+    else h += '<div class="r ok"><b>In tura acum</b></div>';
+  } else {
+    h += '<div class="r vechi">Nu a apasat „Incepe tura” in aceasta zi</div>';
+  }
+  if (r.ultima) {
+    var vechi = !r.final && r.minUltima != null && r.minUltima > 30 && d.data === azi();
+    h += '<div class="r">Ultimul semnal: <b class="' + (vechi ? 'vechi' : 'ok') + '">' + hm(r.ultima.t) + (d.data === azi() && r.minUltima != null ? ' (acum ' + r.minUltima + ' min)' : '') + '</b></div>';
+  }
+  // km
+  var kmG = Math.round(r.km * 10) / 10;
+  if (r.final && r.kmStart != null && r.kmStop != null) {
+    var kmB = r.kmStop - r.kmStart, dif = kmB - kmG, pct = kmG > 0 ? Math.abs(dif) / kmG * 100 : 0;
+    var rosu = Math.abs(dif) > (st.prag_km || 10) && pct > (st.prag_procent || 15);
+    h += '<div class="km ' + (rosu ? 'rosu' : 'verde') + '">Km bord: <b>' + kmB + '</b> &middot; Km GPS: <b>' + String(kmG).replace('.', ',') + '</b> &middot; diferenta ' + (dif > 0 ? '+' : '') + String(Math.round(dif * 10) / 10).replace('.', ',') + ' km (' + Math.round(pct) + '%)' +
+      (rosu ? '<br>Diferenta mare: verifica km declarati' : '') + '</div>';
+  } else if (r.start) {
+    h += '<div class="km">Km GPS de la pornire: <b>' + String(kmG).replace('.', ',') + '</b>' + (r.kmStart != null ? ' &middot; bordul ar trebui sa arate in jur de <b>' + Math.round(r.kmStart + kmG) + '</b>' : '') + '</div>';
+  }
+  // contoare pe status
+  var nr = {};
+  r.unice.forEach(function (v) { nr[v.st.eticheta] = (nr[v.st.eticheta] || 0) + 1; });
+  h += '<div class="mare">' + r.unice.length + ' magazine vizitate</div><div class="cnt">';
+  Object.keys(nr).forEach(function (k) { h += '<span style="background:' + ((STATUS[k] || {}).c || '#2563eb') + '">' + esc(k) + ': ' + nr[k] + '</span>'; });
+  var nemarcate = r.opriri.filter(function (op) { return !op.vizite.length && op.mag && op.mag.cod !== '999'; }).length;
+  if (nemarcate) h += '<span style="background:#f59e0b">opriri la magazin nemarcate: ' + nemarcate + '</span>';
+  h += '</div>';
+
+  // jurnalul zilei, in ordine
+  var rand = [];
+  if (r.start) rand.push({ s: sec(r.start.ora), html: '<span class="o">' + hm(r.start.ora) + '</span><span class="d"><b>Incepe tura</b>' + (r.kmStart != null ? ' &middot; ' + r.kmStart + ' km' : '') + '</span>' });
+  r.opriri.forEach(function (op) {
+    var oraInterval = '<span class="o">' + hm(op.sosire) + '–' + p2(new Date(op.s1 * 1000).getHours()) + ':' + p2(new Date(op.s1 * 1000).getMinutes()) + '</span>';
+    if (op.vizite.length) {
+      op.vizite.forEach(function (v, k) {
+        var m = v.mag;
+        rand.push({ s: k ? v.s : op.s0, html: (k ? '<span class="o">' + hm(v.e.ora) + '</span>' : oraInterval) + '<span class="d"><b>' + esc(v.e.cod) + ' ' + esc(m ? m.nume : '') + '</b>' +
+          '<span class="st" style="background:' + v.st.culoare + '">' + esc(v.st.eticheta) + '</span>' + (v.st.rest ? ' <i>' + esc(v.st.rest) + '</i>' : '') +
+          '<br><span class="x">' + (k ? 'marcat din nou' : 'oprit ' + op.min + ' min, marcat la ' + hm(v.e.ora)) + (v.dm != null && v.dm > 300 ? '</span> <span class="bad">marcat la ' + textDist(v.dm) + ' de magazin</span>' : '</span>') + '</span>' });
+      });
+    } else if (op.mag && op.mag.cod === '999') {
+      rand.push({ s: op.s0, html: oraInterval + '<span class="d">Depozit Jilava <span class="x">(' + op.min + ' min)</span></span>' });
+    } else if (op.mag) {
+      rand.push({ s: op.s0, html: oraInterval + '<span class="d"><span class="warn">Oprire nemarcata</span> langa <b>' + esc(op.mag.cod + ' ' + op.mag.nume) + '</b> <span class="x">(' + op.min + ' min)</span></span>' });
+    } else {
+      rand.push({ s: op.s0, html: oraInterval + '<span class="d">Oprire in afara magazinelor <span class="x">(' + op.min + ' min)</span> <a target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=' + op.lat + ',' + op.lon + '">harta</a></span>' });
+    }
+  });
+  r.vizite.forEach(function (v) {
+    if (v.opr) return;
+    rand.push({ s: v.s, html: '<span class="o">' + hm(v.e.ora) + '</span><span class="d"><b>' + esc(v.e.cod) + ' ' + esc(v.mag ? v.mag.nume : '') + '</b><span class="st" style="background:' + v.st.culoare + '">' + esc(v.st.eticheta) + '</span>' +
+      (v.st.rest ? ' <i>' + esc(v.st.rest) + '</i>' : '') + '<br>' + (v.dm != null && v.dm > 300 ? '<span class="bad">marcat fara oprire, la ' + textDist(v.dm) + ' de magazin</span>' : '<span class="x">marcat fara oprire lunga' + (v.dm != null ? ', la ' + textDist(v.dm) + ' de magazin' : '') + '</span>') + '</span>' });
+  });
+  r.puncte.forEach(function (e) { rand.push({ s: sec(e.ora), html: '<span class="o">' + hm(e.ora) + '</span><span class="d"><b style="color:#7c3aed">Punct nou</b> ' + esc(e.nota) + '</span>' }); });
+  if (r.final) rand.push({ s: sec(r.final.ora), html: '<span class="o">' + hm(r.final.ora) + '</span><span class="d"><b>Incheie tura</b> &middot; ' + esc(r.final.nota) + '</span>' });
+  rand.sort(function (x, y) { return x.s - y.s; });
+  if (rand.length) h += '<ul class="jurnal">' + rand.map(function (x) { return '<li>' + x.html + '</li>'; }).join('') + '</ul>';
+  if (r.ultima) h += linkMaps(r.ultima.lat, r.ultima.lon);
+  h += '</div>';
+  return { html: h, lim: lim };
+}
+
+function cardRuta(rt, c, d) {
+  var lim = [];
+  rt.opriri.forEach(function (o) {
+    if (o.lat == null || o.cod === '999') return;
+    var f = o.status === 'DELIVERED' ? '#16a34a' : (o.status === 'FAILED' ? '#dc2626' : '#ffffff');
+    var st = o.status === 'DELIVERED' ? 'LIVRAT la ' + hm(o.ora) : (o.status === 'FAILED' ? 'NELIVRAT la ' + hm(o.ora) + (o.nota ? ' - ' + esc(o.nota) : '') : 'de facut');
+    L.marker([o.lat, o.lon], { icon: iconNr(o.seq, f, c, o.status ? '#fff' : '#333') }).bindPopup('<b>' + esc(rt.route) + ' #' + o.seq + ' - ' + esc(o.cod) + '</b><br>' + esc(o.nume) + '<br>' + st).addTo(strat);
+    lim.push([o.lat, o.lon]);
+  });
+  if (rt.traseu.length > 1) L.polyline(rt.traseu, { color: c, weight: 4, opacity: .7 }).addTo(strat);
+  var u = rt.ultima;
+  if (u) { L.marker([u.lat, u.lon], { icon: iconAgent(rt.route.substring(0, 5), c), zIndexOffset: 1000 }).bindPopup('<b>' + esc(rt.route) + '</b> ' + esc(rt.sofer) + '<br>Ultima pozitie: ' + hm(u.ora)).addTo(strat); lim.push([u.lat, u.lon]); }
+  var h = '<div class="card" style="border-left-color:' + c + '"><h2>' + esc(rt.route) + (rt.sofer ? ' &middot; ' + esc(rt.sofer) : '') + '</h2>';
+  h += '<div class="mare">' + rt.livrate + ' livrate' + (rt.nelivrate ? ', ' + rt.nelivrate + ' nelivrate' : '') + ' din ' + rt.total + '</div>';
+  h += '<div class="r">Pornit: ' + hm(rt.start) + (rt.final ? ' &middot; Incheiat: ' + hm(rt.final) : '') + '</div>';
+  if (u) h += '<div class="r">Ultimul semnal: <b>' + hm(u.ora) + '</b></div>' + linkMaps(u.lat, u.lon);
+  return { html: h + '</div>', lim: lim };
+}
+
+function cardTelefon(t, d) {
+  var c = '#7c3aed', lim = [];
+  if (t.traseu.length > 1) L.polyline(t.traseu, { color: c, weight: 3, opacity: .7, dashArray: '6,6' }).addTo(strat);
+  t.traseu.forEach(function (q) { lim.push(q); });
+  var u = t.ultima;
+  if (u) L.marker([u.lat, u.lon], { icon: iconAgent(t.device.substring(0, 6), c), zIndexOffset: 900 }).bindPopup('<b>' + esc(t.device) + ' (telefon)</b><br>Ultima pozitie: ' + hm(u.ora)).addTo(strat);
+  var h = '<div class="card" style="border-left-color:' + c + '"><h2>' + esc(t.device) + ' <span style="font-weight:400">(aplicatia veche)</span></h2>';
+  h += '<div class="mare">' + t.km + ' km &middot; ' + t.ore + ' ore</div><div class="r">Prima pozitie: ' + hm(t.start) + ' &middot; ultima: ' + hm(t.final) + '</div>';
+  if (t.opriri.length) {
+    h += '<ul class="jurnal">' + t.opriri.map(function (o) { return '<li><span class="o">' + hm(o.sosire) + '–' + hm(o.plecare) + '</span><span class="d">' + esc(o.cod ? o.cod + ' ' + o.nume : 'in afara magazinelor') + ' <span class="x">(' + o.min + ' min)</span></span></li>'; }).join('') + '</ul>';
+  }
+  if (u) h += linkMaps(u.lat, u.lon);
+  return { html: h + '</div>', lim: lim };
+}
+
+function deseneaza(d) {
+  construiesteMagazine(d);
+  strat.clearLayers();
+  var lim = [[d.depot.lat, d.depot.lon]], html = '';
+  L.marker([d.depot.lat, d.depot.lon], { title: 'Depozit Jilava' }).bindPopup('<b>Depozit Arteca Jilava</b>').addTo(strat);
+  var nrc = 0;
+  (d.agenti || []).forEach(function (a) {
+    var r = analizeaza(a, d.data, d.setari || {}, d.acum);
+    var x = cardAgent(a, r, CULORI[nrc++ % CULORI.length], d); html += x.html; lim = lim.concat(x.lim);
+  });
+  (d.rute || []).forEach(function (rt) { var x = cardRuta(rt, CULORI[nrc++ % CULORI.length], d); html += x.html; lim = lim.concat(x.lim); });
+  (d.telefoane || []).forEach(function (t) { var x = cardTelefon(t, d); html += x.html; lim = lim.concat(x.lim); });
+  if (!html) html = '<div class="gol">Nicio activitate pe ' + esc(d.data) + '</div>';
+  $('lista').innerHTML = html;
+  if (primaData && lim.length > 1) { harta.fitBounds(lim, { padding: [30, 30] }); primaData = false; }
+  $('stare').textContent = 'Ziua ' + d.data + ' · actualizat ' + hm(d.acum) + ' · se reimprospateaza la 60 s · v' + VERSIUNE;
+}
+
+var seIncarca = false;
+function incarca(manual) {
+  if (!COD) { arataPoarta(); return; }
+  if (seIncarca) return;
+  seIncarca = true;
+  $('stare').textContent = 'Se incarca...';
+  var zi = $('zi').value || azi();
+  var u = SERVER_URL + '?action=dispecer&key=' + API_KEY + '&cod=' + encodeURIComponent(COD) + '&data=' + zi + '&t=' + Date.now();
+  (ZONE ? Promise.resolve() : incarcaZone()).then(function () { return fetch(u); }).then(function (r) { return r.json(); }).then(function (d) {
+    seIncarca = false;
+    if (!d.ok) {
+      if (d.error === 'cod gresit') { COD = ''; scrie('disp_cod', null); arataPoarta('Cod gresit sau schimbat. Scrie codul nou.'); return; }
+      $('stare').textContent = 'Eroare: ' + d.error; return;
+    }
+    deseneaza(d);
+  }).catch(function (e) { seIncarca = false; $('stare').textContent = 'Nu ma pot conecta la server (' + e.message + '). Reincerc la 60 s.'; });
+}
+
+$('zi').value = azi();
+$('zi').onchange = function () { primaData = true; incarca(true); };
+incarca(true);
+setInterval(function () { if (!document.hidden) incarca(false); }, 60000);
+</script>
+</body>
+</html>
