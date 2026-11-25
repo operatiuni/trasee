@@ -68,6 +68,10 @@
   .pinM { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; background: #1a1a2e; box-shadow: 0 1px 4px rgba(0,0,0,.45); }
   .pinM.facut { background: #1d7a46; } .pinM.retur { background: #cf6b12; } .pinM.nuvrea { background: #b3261e; }
   .pinM.profi { background: #0057b8; border-radius: 4px; }
+  .pinW { position: relative; width: 16px; height: 16px; }
+  .pinW b { position: absolute; left: 18px; top: 1px; font-size: 10px; font-weight: 700; color: #1a1a2e; background: rgba(255,255,255,.85); padding: 0 3px; border-radius: 4px; white-space: nowrap; line-height: 13px; }
+  .faraEtichete .pinW b { display: none; }
+  .pinM.alt { background: #94a3b8; width: 12px; height: 12px; margin: 2px; }
   .pinM.inchis { background: #5c5c70; } .pinM.altceva { background: #6a3d9a; } .pinM.oprit { background: #b0b0bc; }
   .tipPunct.ales { background: #6a3d9a; color: #fff; }
   /* capacitate si produse */
@@ -244,7 +248,7 @@ function inTura() { return APP ? APP.esteInTura() : !!tura(); }
 
 // ---------------- Pornire ----------------
 function init() {
-  if (APP && APP.versiuneAplicatie) $('stVer').textContent = 'app ' + APP.versiuneAplicatie() + ' / pagina 1.6';
+  if (APP && APP.versiuneAplicatie) $('stVer').textContent = 'app ' + APP.versiuneAplicatie() + ' / pagina 1.7';
   if (!agent()) { comuta('ecranNume'); $('numeAgent').value = ''; }
   else afiseaza();
   incarcaZona();
@@ -264,6 +268,13 @@ function incarcaZona() {
   fetch('zone.json?t=' + Date.now()).then(function (r) { return r.json(); }).then(function (d) {
     zona = d.zone[ZONA];
     if (!zona) { banner('rau', 'Zona ' + ZONA + ' nu exista in zone.json'); return; }
+    // magazinele altor trasee: doar ca reper pe harta (gri), nu se marcheaza
+    var vazut = {}; zona.active.concat(zona.standby).forEach(function (s) { vazut[s.cod] = 1; });
+    zona.altele = [];
+    Object.keys(d.zone).forEach(function (k) {
+      var z = d.zone[k]; if (k === ZONA || z.titlu === zona.titlu) return;
+      z.active.forEach(function (s) { if (s.lat && !vazut[s.cod]) { vazut[s.cod] = 1; zona.altele.push({ cod: s.cod, nume: s.nume, lat: s.lat, lon: s.lon, traseu: z.titlu }); } });
+    });
     zona.profi = profiInZona(citeste('to_profi', []));
     afiseaza();
     incarcaProfi();
@@ -407,6 +418,7 @@ function waze(cod) {
 }
 
 // ---------------- Harta: punctul meu + magazinele zonei ----------------
+var altDesenate = false, stratAlte = null;
 var harta = null, stratMag = null, stratPuncte = null, punctMeu = null, cercMeu = null, pinMag = {}, incadrat = false;
 var urmaresc = true;          // harta il urmareste pe agent pana muta harta cu degetul
 var centratPeMine = false;    // prima pozitie primita centreaza harta
@@ -423,7 +435,10 @@ function pregatesteHarta() {
   L.control.layers({ 'Harta': strada, 'Satelit': satelit }, null, { position: 'bottomright' }).addTo(harta);
   harta.on('baselayerchange', function (e) { scrie('to_strat', e.name); });
   harta.setView([44.9, 25.9], 9);
+  stratAlte = L.layerGroup().addTo(harta);
   stratMag = L.layerGroup().addTo(harta);
+  var etichete = function () { var c = harta.getContainer(); if (harta.getZoom() < 14) c.classList.add('faraEtichete'); else c.classList.remove('faraEtichete'); };
+  harta.on('zoomend', etichete); etichete();
   stratPuncte = L.layerGroup().addTo(harta);
   harta.on('dragstart', function () { urmaresc = false; });
   harta.on('contextmenu', function (e) { deschidePunct(e.latlng); });   // apasare lunga pe harta
@@ -446,15 +461,22 @@ function deseneazaPinii(viz) {
   toate.forEach(function (o) {
     var s = o.s; if (!s.lat || !s.lon) return;
     var v = viz[s.cod], cls = v ? (v.st === 'fost' ? 'facut' : v.st) : (o.oprit ? 'oprit' : (s.profi ? 'profi' : ''));
-    // marimea bulinei dupa capacitatea medie (ca pe pagina de zona)
-    var d = s.profi ? 16 : Math.round(2 * Math.max(6, Math.min(15, 4 + Math.sqrt(s.med || 0))));
-    var ic = L.divIcon({ className: '', html: '<div class="pinM ' + cls + '" style="width:' + d + 'px;height:' + d + 'px"></div>',
-      iconSize: [d, d], iconAnchor: [d / 2, d / 2] });
+    // toate bulinele de aceeasi marime, cu numarul magazinului langa (de la zoom 14)
+    var ic = L.divIcon({ className: '', html: '<div class="pinW"><div class="pinM ' + cls + '"></div><b>' + esc(s.cod) + '</b></div>',
+      iconSize: [16, 16], iconAnchor: [8, 8] });
     if (!pinMag[s.cod]) {
       pinMag[s.cod] = L.marker([s.lat, s.lon], { icon: ic, title: s.nume }).addTo(stratMag);
       pinMag[s.cod].on('click', function () { deschideStatus(s); });
     } else pinMag[s.cod].setIcon(ic);
   });
+  if (!altDesenate) {
+    altDesenate = true;
+    (zona.altele || []).forEach(function (s) {
+      var ic = L.divIcon({ className: '', html: '<div class="pinW"><div class="pinM alt"></div><b>' + esc(s.cod) + '</b></div>', iconSize: [16, 16], iconAnchor: [8, 8] });
+      L.marker([s.lat, s.lon], { icon: ic, title: s.nume, zIndexOffset: -1000 }).addTo(stratAlte)
+        .bindPopup('<b>' + esc(s.cod + ' ' + s.nume) + '</b><br>Magazinul nostru de pe ' + esc(s.traseu));
+    });
+  }
   if (!incadrat) {
     incadrat = true;
     var p = pozitieCurenta();
