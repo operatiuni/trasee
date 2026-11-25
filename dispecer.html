@@ -48,6 +48,19 @@ body{margin:0;font-family:system-ui,Roboto,Arial,sans-serif;background:#f2f2f5;c
 .opr{min-width:26px;height:18px;line-height:14px;border-radius:9px;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.4);color:#fff;font-size:10px;font-weight:700;text-align:center;padding:0 3px}
 .nrj{display:inline-block;min-width:24px;font-size:11px;font-weight:700;color:#fff;border-radius:8px;text-align:center;padding:0 4px;margin-right:4px}
 .pinP{width:18px;height:18px;background:#7c3aed;border:2px solid #fff;transform:rotate(45deg);box-shadow:0 0 0 1px rgba(0,0,0,.4)}
+
+.mg{display:flex;align-items:center;gap:2px;white-space:nowrap}
+.mg i{flex:0 0 auto;width:12px;height:12px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.4)}
+.mg i.p{border-radius:3px}
+.mg b{font-size:10px;font-weight:700;color:#1a1a2e;background:rgba(255,255,255,.85);padding:0 3px;border-radius:4px;line-height:13px}
+.faraEtichete .mg b{display:none}
+.loc{font-size:15px;line-height:18px;text-align:center;filter:drop-shadow(0 0 1px #fff)}
+#notaBox{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:5500}
+#notaBox>div{background:#fff;border-radius:14px;padding:16px;width:min(360px,92vw)}
+#notaBox h3{margin:0 0 4px;font-size:16px}#notaBox p{margin:0 0 10px;font-size:13px;color:#555}
+#notaBox .bt{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#notaBox button{font-size:15px;padding:10px;border-radius:10px;border:1px solid #cbd5e1;background:#f8fafc;cursor:pointer}
+#notaBox button.sterge{color:#b91c1c}#notaBox button.inchide{grid-column:1/-1;background:#e2e8f0}
 #poarta{position:fixed;inset:0;background:#1a1a2e;display:none;align-items:center;justify-content:center;z-index:5000}
 #poarta div{background:#fff;border-radius:14px;padding:22px;width:min(340px,90vw);text-align:center}
 #poarta input{font-size:22px;letter-spacing:4px;text-align:center;width:100%;padding:10px;border:2px solid #ccc;border-radius:10px;text-transform:uppercase;margin:12px 0}
@@ -72,11 +85,24 @@ body{margin:0;font-family:system-ui,Roboto,Arial,sans-serif;background:#f2f2f5;c
 <div id="harta"></div>
 <div id="lista"></div>
 <div id="toast"></div>
+<div id="notaBox" onclick="if(event.target===this)inchideNota()"><div>
+  <h3 id="notaTitlu">Nota</h3><p id="notaSub"></p>
+  <div class="bt">
+    <button onclick="salveazaNota('Benzina')">&#9981; Benzina</button>
+    <button onclick="salveazaNota('Banca')">&#127974; Banca</button>
+    <button onclick="salveazaNota('Trafic')">&#128678; Trafic</button>
+    <button onclick="salveazaNota('Pauza')">&#9749; Pauza</button>
+    <button onclick="salveazaNota(null)">&#9998; Altceva...</button>
+    <button class="sterge" onclick="salveazaNota('')">Sterge nota</button>
+    <button class="inchide" onclick="inchideNota()">Inchide</button>
+  </div>
+</div></div>
 
 <script>
 var SERVER_URL = 'https://script.google.com/macros/s/AKfycbwWNLktAcTya9DyfQSsj6TCcKOydvluAazASeDadCMALwdaDUPXW2Wjalo46MM60HI/exec';
 var API_KEY = 'bc2026x7k9m2';
-var VERSIUNE = '1.4';
+var VERSIUNE = '1.5';
+var DEPOZIT = { lat: 44.345471, lon: 26.086406 };   // Arteca Jilava, Sos. Giurgiului 33A
 var CULORI = ['#e11d48', '#2563eb', '#16a34a', '#d97706', '#0891b2', '#be185d', '#4d7c0f', '#7c3aed'];
 var STATUS = {
   'A fost': { c: '#16a34a', k: 'fost' }, 'Doar retur': { c: '#d97706', k: 'retur' },
@@ -120,22 +146,45 @@ var straturi = {
 };
 var stratAles = citeste('disp_strat', 'Harta');
 (straturi[stratAles] || straturi.Harta).addTo(harta);
-var stratProfi = L.layerGroup(), stratProprii = L.layerGroup(), magDesenate = false;
-L.control.layers(straturi, { 'Magazine Profi': stratProfi, 'Magazinele noastre': stratProprii }, { position: 'topright' }).addTo(harta);
+var stratProfi = L.layerGroup(), stratProprii = L.layerGroup(), stratLocuri = L.layerGroup(), magDesenate = '';
+L.control.layers(straturi, { 'Magazine Profi': stratProfi, 'Magazinele noastre': stratProprii, 'Locuri notate': stratLocuri }, { position: 'topright' }).addTo(harta);
+stratLocuri.addTo(harta);
+function eticheteZoom() { var c = harta.getContainer(); if (harta.getZoom() < 14) c.classList.add('faraEtichete'); else c.classList.remove('faraEtichete'); }
+harta.on('zoomend', eticheteZoom); eticheteZoom();
 if (citeste('disp_profi', '1') === '1') stratProfi.addTo(harta);
 if (citeste('disp_proprii', '1') === '1') stratProprii.addTo(harta);
-harta.on('overlayadd', function (e) { scrie(e.layer === stratProfi ? 'disp_profi' : 'disp_proprii', '1'); });
-harta.on('overlayremove', function (e) { scrie(e.layer === stratProfi ? 'disp_profi' : 'disp_proprii', '0'); });
-function deseneazaMagazine() {
-  if (magDesenate) return; magDesenate = true;
-  var r = L.canvas({ padding: 0.5 });
+harta.on('overlayadd', function (e) { if (e.layer !== stratLocuri) scrie(e.layer === stratProfi ? 'disp_profi' : 'disp_proprii', '1'); });
+harta.on('overlayremove', function (e) { if (e.layer !== stratLocuri) scrie(e.layer === stratProfi ? 'disp_profi' : 'disp_proprii', '0'); });
+// bulinele magazinelor: reper fix, toate de aceeasi marime, cu numarul magazinului (vizibil de la zoom 14)
+// verde = magazinele traseelor care au lucrat azi, gri = alte trasee, albastru = Profi
+function deseneazaMagazine(zoneAzi) {
+  var cheie = Object.keys(MAG).length + '|' + zoneAzi.join(',');
+  if (magDesenate === cheie) return; magDesenate = cheie;
+  stratProfi.clearLayers(); stratProprii.clearLayers();
   Object.keys(MAG).forEach(function (k) {
     var m = MAG[k]; if (m.lat == null || k === '999' || /^B\d/.test(k)) return;
-    var profi = /profi/i.test(m.nume);
-    L.circleMarker([m.lat, m.lon], { renderer: r, radius: profi ? 5 : 4, weight: 1.5, color: '#fff', fillColor: profi ? '#0057b8' : '#64748b', fillOpacity: .85 })
-      .bindPopup('<b>' + esc(k + ' ' + m.nume) + '</b>' + (profi ? '<br>Profi' : (m.zona && ZONE[m.zona] ? '<br>' + esc(ZONE[m.zona].titlu) : '')))
+    var profi = /profi/i.test(m.nume), tz = m.zona && ZONE[m.zona] ? ZONE[m.zona].titlu : '';
+    var cul = profi ? '#0057b8' : (tz && zoneAzi.indexOf(tz) >= 0 ? '#16a34a' : '#64748b');
+    var ic = L.divIcon({ className: '', html: '<div class="mg"><i class="' + (profi ? 'p' : '') + '" style="background:' + cul + '"></i><b>' + esc(k) + '</b></div>', iconSize: [12, 12], iconAnchor: [6, 6] });
+    L.marker([m.lat, m.lon], { icon: ic, zIndexOffset: -1000, title: k + ' ' + m.nume })
+      .bindPopup('<b>' + esc(k + ' ' + m.nume) + '</b>' + (profi ? '<br>Magazin Profi' : (tz ? '<br>Traseu: ' + esc(tz) : '') + '<br>Capacitate: ' + (m.med != null ? esc(m.med) : '-')))
       .addTo(profi ? stratProfi : stratProprii);
   });
+}
+// locurile notate (benzinarie, banca...) raman pe harta si eticheteaza singure opririle viitoare din acelasi loc
+var LOCURI = [];
+function simbolLoc(t) { t = String(t).toLowerCase(); return /^benzin/.test(t) ? '&#9981;' : /^banc/.test(t) ? '&#127974;' : /^trafic/.test(t) ? '&#128678;' : /^pauz/.test(t) ? '&#9749;' : '&#128205;'; }
+function deseneazaLocuri() {
+  stratLocuri.clearLayers();
+  LOCURI.forEach(function (l) {
+    L.marker([l.lat, l.lon], { icon: L.divIcon({ className: '', html: '<div class="loc">' + simbolLoc(l.nota) + '</div>', iconSize: [18, 18], iconAnchor: [9, 9] }), zIndexOffset: -500 })
+      .bindPopup('<b>' + esc(l.nota) + '</b><br>notat pe ' + esc(ziRo(l.data))).addTo(stratLocuri);
+  });
+}
+function locInvatat(c) {
+  var best = null, bd = RAZA_OPRIRE;
+  LOCURI.forEach(function (l) { var d = dist(c, l); if (d <= bd) { bd = d; best = l; } });
+  return best ? best.nota : '';
 }
 harta.on('baselayerchange', function (e) { scrie('disp_strat', e.name); });
 var strat = L.layerGroup().addTo(harta), primaData = true;
@@ -149,11 +198,11 @@ function incarcaZone() {
 function construiesteMagazine(dServer) {
   MAG = {};
   var m = dServer.magazine || {};
-  Object.keys(m).forEach(function (c) { MAG[c] = { cod: c, nume: m[c][0], lat: m[c][1], lon: m[c][2], zona: '' }; });
+  Object.keys(m).forEach(function (c) { MAG[c] = { cod: c, nume: m[c][0], lat: m[c][1], lon: m[c][2], zona: '', med: null }; });
   Object.keys(ZONE || {}).forEach(function (z) {
     var zz = ZONE[z];
     ['active', 'standby'].forEach(function (t) {
-      (zz[t] || []).forEach(function (s) { var c = String(s.cod), v = MAG[c]; if (s.lat || !v) MAG[c] = { cod: c, nume: s.nume, lat: s.lat || (v && v.lat) || null, lon: s.lon || (v && v.lon) || null, zona: z }; });
+      (zz[t] || []).forEach(function (s) { var c = String(s.cod), v = MAG[c]; if (s.lat || !v) MAG[c] = { cod: c, nume: s.nume, lat: s.lat || (v && v.lat) || null, lon: s.lon || (v && v.lon) || null, zona: z, med: s.med != null ? s.med : null }; });
     });
   });
 }
@@ -263,7 +312,7 @@ function analizeaza(a, data, st, acum) {
   unice.sort(function (x, y) { return x.s - y.s; }).forEach(function (v, k) { v.nr = k + 1; });
   vizite.forEach(function (v) { v.nr = ultimul[v.e.cod].nr; });
   var nf = 0;
-  opriri.forEach(function (op) { if (!op.vizite.length && !(op.mag && op.mag.cod === '999')) op.nr = ++nf; });
+  opriri.forEach(function (op) { if (!op.vizite.length && !(op.mag && op.mag.cod === '999')) { op.nr = ++nf; op.invatat = locInvatat(op); } });
 
   var ultimaPoz = pts.length ? pts[pts.length - 1] : null;
   return { start: start, final: final, kmStart: kmStart, kmStop: kmStop, km: km, opriri: opriri, vizite: vizite, unice: unice,
@@ -280,7 +329,7 @@ function celMaiAproape(c, raza) {
     var d = dist(c, m); if (d < bd) { bd = d; best = m; }
   });
   if (best) best = { cod: best.cod, nume: best.nume, lat: best.lat, lon: best.lon, zona: best.zona, dm: Math.round(bd) };
-  if (!best && dist(c, { lat: 44.347042, lon: 26.083327 }) < 350) return { cod: '999', nume: 'Depozit Jilava', lat: 44.347042, lon: 26.083327 };
+  if (!best && dist(c, DEPOZIT) < 350) return { cod: '999', nume: 'Depozit Jilava', lat: DEPOZIT.lat, lon: DEPOZIT.lon };
   return best;
 }
 
@@ -295,20 +344,33 @@ function zonaAgentului(r) {
 var CARDURI = [], NOTE = {}, ULTIM = null;
 function cheieOpr(op) { return String(op.sosire).substring(11, 19); }
 function notaOpr(agent, op) { return NOTE[agent + '|' + cheieOpr(op)] || ''; }
+var NOTA_CTX = null;
 function editeazaNota(idx, cheie) {
   var c = CARDURI[idx]; if (!c) return;
   var op = c.r.opriri.filter(function (o) { return cheieOpr(o) === cheie; })[0]; if (!op) return;
+  NOTA_CTX = { c: c, op: op, cheie: cheie };
   var veche = notaOpr(c.a.agent, op);
-  var t = prompt('Nota pentru oprirea O' + op.nr + ' (' + hm(op.sosire) + ', ' + op.min + ' min). Lasa gol ca sa o stergi.', veche);
-  if (t === null) return;
-  t = t.replace(/^\s+|\s+$/g, '');
+  $('notaTitlu').textContent = 'Oprirea O' + op.nr + ' · ' + hm(op.sosire) + ' (' + op.min + ' min)';
+  $('notaSub').textContent = c.a.agent + (veche ? ' · nota actuala: ' + veche : (op.invatat ? ' · probabil: ' + op.invatat : ''));
+  $('notaBox').style.display = 'flex';
+  harta.closePopup();
+}
+function inchideNota() { $('notaBox').style.display = 'none'; NOTA_CTX = null; }
+function salveazaNota(t) {
+  var x = NOTA_CTX; if (!x) return;
+  var c = x.c, op = x.op, cheie = x.cheie;
+  if (t === null) { t = prompt('Scrie nota pentru oprirea O' + op.nr + ':', notaOpr(c.a.agent, op)); if (t === null) return; }
+  t = String(t).replace(/^\s+|\s+$/g, '');
+  inchideNota();
   toast('Se salveaza...');
   fetch(SERVER_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
     body: JSON.stringify({ key: API_KEY, action: 'nota_dispecer', cod: COD, data: c.data, agent: c.a.agent, cheie: cheie, ora: hm(op.sosire) + '-' + hmS(op.s1), lat: op.lat.toFixed(6), lon: op.lon.toFixed(6), nota: t }) })
     .then(function (r) { return r.json(); }).then(function (j) {
       if (!j.ok) { toast('Nu s-a salvat: ' + j.error); return; }
       var k = c.a.agent + '|' + cheie; if (t) NOTE[k] = t; else delete NOTE[k];
-      if (ULTIM) { ULTIM.note = NOTE; deseneaza(ULTIM); }
+      LOCURI = LOCURI.filter(function (l) { return !(l.data === c.data && Math.abs(l.lat - op.lat) < 1e-5 && Math.abs(l.lon - op.lon) < 1e-5); });
+      if (t) LOCURI.push({ lat: Number(op.lat.toFixed(6)), lon: Number(op.lon.toFixed(6)), nota: t, data: c.data });
+      if (ULTIM) { ULTIM.note = NOTE; ULTIM.locuri = LOCURI.map(function (l) { return [l.lat, l.lon, l.nota, l.data]; }); deseneaza(ULTIM); }
       toast(t ? 'Nota salvata in Google Sheets' : 'Nota stearsa');
     }).catch(function (e) { toast('Nu s-a salvat (' + e.message + ')'); });
 }
@@ -329,7 +391,7 @@ function randuriZi(r, agent) {
       out.push({ s: k ? v.s : op.s0, nr: String(v.nr), tip: 'Vizita', ora: k ? hm(v.e.ora) : ora, min: k ? '' : op.min, cod: v.e.cod, magazin: v.mag ? v.mag.nume : '', status: v.st.eticheta, nota: (v.st.rest || '') + (k ? ' (marcat din nou)' : ''), link: linkG(op.lat, op.lon) });
     });
     else if (op.mag && op.mag.cod === '999') out.push({ s: op.s0, tip: 'Depozit', ora: ora, min: op.min, cod: '999', magazin: 'Depozit Jilava', link: linkG(op.lat, op.lon) });
-    else out.push({ s: op.s0, nr: 'O' + op.nr, tip: 'Oprire fara vizita', ora: ora, min: op.min, cod: op.mag ? op.mag.cod : '', magazin: op.mag ? (op.scurta ? 'posibila oprire scurta, ' : '') + 'langa ' + op.mag.nume + ' (la ' + op.mag.dm + ' m)' : 'in afara magazinelor', nota: NOTE[agentCurent + '|' + cheieOpr(op)] || '', link: linkG(op.lat, op.lon) });
+    else out.push({ s: op.s0, nr: 'O' + op.nr, tip: 'Oprire fara vizita', ora: ora, min: op.min, cod: op.mag ? op.mag.cod : '', magazin: op.mag ? (op.scurta ? 'oprire scurta, ' : '') + 'la ' + op.mag.dm + ' m de ' + op.mag.cod + ' ' + op.mag.nume : 'in afara magazinelor', nota: NOTE[agentCurent + '|' + cheieOpr(op)] || (op.invatat ? 'probabil ' + op.invatat : ''), link: linkG(op.lat, op.lon) });
   });
   r.vizite.forEach(function (v) {
     if (v.opr) return;
@@ -343,7 +405,7 @@ function randuriZi(r, agent) {
 function linieText(x) {
   var t = (x.tip === 'Oprire fara vizita' ? 'Oprirea ' + x.nr + ': ' : (x.nr ? x.nr + '. ' : '')) + x.ora + (x.min !== undefined && x.min !== '' ? ' (' + x.min + ' min)' : '') + ' ';
   if (x.tip === 'Vizita') t += x.cod + ' ' + x.magazin + ' - ' + x.status + (x.nota ? ' - ' + x.nota : '');
-  else if (x.tip === 'Oprire fara vizita') t += (x.cod ? x.magazin.replace('langa ', 'langa ' + x.cod + ' ') : x.magazin) + (x.nota ? ' - Nota: ' + x.nota : '');
+  else if (x.tip === 'Oprire fara vizita') t += x.magazin + (x.nota ? ' - Nota: ' + x.nota : '');
   else t += x.tip + (x.magazin ? ' ' + x.magazin : '') + (x.nota ? ' - ' + x.nota : '');
   if (x.link && (x.tip === 'Oprire fara vizita' || x.tip === 'Punct nou' || (x.nota && x.nota.indexOf('fara oprire') >= 0))) t += '  ' + x.link;
   return t;
@@ -388,7 +450,7 @@ function descarca(idx) {
 // ---------------- desen ----------------
 function blocNota(idx, a, op) {
   var n = notaOpr(a.agent, op);
-  return (n ? '<div class="notaD">' + esc(n) + '</div>' : '') + ' <a href="#" class="btnNota" onclick="editeazaNota(' + idx + ',\'' + cheieOpr(op) + '\');return false">' + (n ? '&#9998; modifica nota' : '&#9998; nota') + '</a>';
+  return (n ? '<div class="notaD">' + esc(n) + '</div>' : (op.invatat ? ' <span class="x">&middot; probabil: ' + esc(op.invatat) + '</span>' : '')) + ' <a href="#" class="btnNota" onclick="editeazaNota(' + idx + ',\'' + cheieOpr(op) + '\');return false">' + (n ? '&#9998; modifica nota' : '&#9998; nota') + '</a>';
 }
 function iconNr(text, fond, chenar, culoareText) {
   return L.divIcon({ className: '', html: '<div class="nr" style="background:' + fond + ';color:' + (culoareText || '#fff') + ';border-color:' + chenar + '">' + text + '</div>', iconSize: [22, 22], iconAnchor: [11, 11] });
@@ -408,9 +470,9 @@ function cardAgent(a, r, c, d) {
   // opriri fara vizita marcata
   r.opriri.forEach(function (op) {
     if (op.vizite.length) return;
-    var nume = op.mag ? (op.mag.cod + ' ' + op.mag.nume + ' (la ' + op.mag.dm + ' m)') : 'in afara magazinelor';
+    var nume = op.mag ? ('la ' + op.mag.dm + ' m de ' + op.mag.cod + ' ' + op.mag.nume) : 'in afara magazinelor';
     var ic = L.divIcon({ className: '', html: '<div class="opr" style="background:' + (op.mag ? '#f59e0b' : '#9ca3af') + '">O' + op.nr + '</div>', iconSize: [26, 18], iconAnchor: [13, 9] });
-    L.marker([op.lat, op.lon], { icon: ic }).bindPopup('<b>Oprirea O' + op.nr + ' &middot; ' + hm(op.sosire) + ' (' + op.min + ' min)</b><br>' + esc(nume) + '<br><i>nicio vizita marcata</i>' + (notaOpr(a.agent, op) ? '<br><b style="color:#7c3aed">Nota:</b> ' + esc(notaOpr(a.agent, op)) : '') + '<br><a href="#" onclick="editeazaNota(' + idx + ',\'' + cheieOpr(op) + '\');return false">' + (notaOpr(a.agent, op) ? 'Modifica nota' : 'Adauga nota') + '</a>').addTo(strat);
+    L.marker([op.lat, op.lon], { icon: ic }).bindPopup('<b>Oprirea O' + op.nr + (op.scurta ? ' (scurta)' : '') + ' &middot; ' + hm(op.sosire) + ' (' + op.min + ' min)</b><br>' + esc(nume) + '<br><i>nicio vizita marcata</i>' + (notaOpr(a.agent, op) ? '<br><b style="color:#7c3aed">Nota:</b> ' + esc(notaOpr(a.agent, op)) : (op.invatat ? '<br><span style="color:#666">probabil: ' + esc(op.invatat) + '</span>' : '')) + '<br><a href="#" onclick="editeazaNota(' + idx + ',\'' + cheieOpr(op) + '\');return false">' + (notaOpr(a.agent, op) ? 'Modifica nota' : 'Adauga nota') + '</a>').addTo(strat);
   });
   // vizitele (in ordinea marcarii, la magazin)
   r.unice.forEach(function (v) { var k = v.nr - 1;
@@ -482,7 +544,7 @@ function cardAgent(a, r, c, d) {
     } else if (op.mag && op.mag.cod === '999') {
       rand.push({ s: op.s0, html: oraInterval + '<span class="d">Depozit Jilava <span class="x">(' + op.min + ' min)</span></span>' });
     } else if (op.mag) {
-      rand.push({ s: op.s0, html: oraInterval + '<span class="d"><span class="nrj" style="background:#f59e0b">O' + op.nr + '</span><span class="warn">' + (op.scurta ? 'Posibila oprire scurta' : 'Oprire nemarcata') + '</span> langa <b>' + esc(op.mag.cod + ' ' + op.mag.nume) + '</b> <span class="x">(' + op.min + ' min, la ' + op.mag.dm + ' m)</span>' + blocNota(idx, a, op) + '</span>' });
+      rand.push({ s: op.s0, html: oraInterval + '<span class="d"><span class="nrj" style="background:#f59e0b">O' + op.nr + '</span>' + (op.scurta ? 'Oprire scurta' : 'Oprire') + ' la ' + op.mag.dm + ' m de <b>' + esc(op.mag.cod + ' ' + op.mag.nume) + '</b> <span class="x">(' + op.min + ' min)</span>' + blocNota(idx, a, op) + '</span>' });
     } else {
       rand.push({ s: op.s0, html: oraInterval + '<span class="d"><span class="nrj" style="background:#9ca3af">O' + op.nr + '</span>Oprire in afara magazinelor <span class="x">(' + op.min + ' min)</span> <a target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=' + op.lat + ',' + op.lon + '">harta</a>' + blocNota(idx, a, op) + '</span>' });
     }
@@ -539,14 +601,20 @@ function cardTelefon(t, d) {
 function deseneaza(d) {
   CARDURI = []; ULTIM = d; NOTE = d.note || {};
   construiesteMagazine(d);
-  deseneazaMagazine();
+  LOCURI = (d.locuri || []).map(function (l) { return { lat: Number(l[0]), lon: Number(l[1]), nota: String(l[2]), data: String(l[3] || '') }; })
+    .filter(function (l) { return !isNaN(l.lat) && !isNaN(l.lon) && l.nota; });
+  deseneazaLocuri();
   strat.clearLayers();
-  var lim = [[d.depot.lat, d.depot.lon]], html = '';
-  L.marker([d.depot.lat, d.depot.lon], { title: 'Depozit Jilava' }).bindPopup('<b>Depozit Arteca Jilava</b>').addTo(strat);
-  var nrc = 0;
+  var lim = [[DEPOZIT.lat, DEPOZIT.lon]], html = '';
+  L.marker([DEPOZIT.lat, DEPOZIT.lon], { title: 'Depozit Jilava' }).bindPopup('<b>Depozit Arteca Jilava</b><br>Sos. Giurgiului 33A').addTo(strat);
+  var nrc = 0, analize = [], zoneAzi = [];
   (d.agenti || []).forEach(function (a) {
-    var r = analizeaza(a, d.data, d.setari || {}, d.acum);
-    var x = cardAgent(a, r, CULORI[nrc++ % CULORI.length], d); html += x.html; lim = lim.concat(x.lim);
+    var r = analizeaza(a, d.data, d.setari || {}, d.acum); analize.push([a, r]);
+    var z = zonaAgentului(r); if (z && zoneAzi.indexOf(z) < 0) zoneAzi.push(z);
+  });
+  deseneazaMagazine(zoneAzi);
+  analize.forEach(function (ar) {
+    var x = cardAgent(ar[0], ar[1], CULORI[nrc++ % CULORI.length], d); html += x.html; lim = lim.concat(x.lim);
   });
   (d.rute || []).forEach(function (rt) { var x = cardRuta(rt, CULORI[nrc++ % CULORI.length], d); html += x.html; lim = lim.concat(x.lim); });
   (d.telefoane || []).forEach(function (t) { var x = cardTelefon(t, d); html += x.html; lim = lim.concat(x.lim); });
