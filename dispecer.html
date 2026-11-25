@@ -76,7 +76,7 @@ body{margin:0;font-family:system-ui,Roboto,Arial,sans-serif;background:#f2f2f5;c
 <script>
 var SERVER_URL = 'https://script.google.com/macros/s/AKfycbwWNLktAcTya9DyfQSsj6TCcKOydvluAazASeDadCMALwdaDUPXW2Wjalo46MM60HI/exec';
 var API_KEY = 'bc2026x7k9m2';
-var VERSIUNE = '1.3';
+var VERSIUNE = '1.4';
 var CULORI = ['#e11d48', '#2563eb', '#16a34a', '#d97706', '#0891b2', '#be185d', '#4d7c0f', '#7c3aed'];
 var STATUS = {
   'A fost': { c: '#16a34a', k: 'fost' }, 'Doar retur': { c: '#d97706', k: 'retur' },
@@ -212,6 +212,29 @@ function analizeaza(a, data, st, acum) {
   }
   km = km / 1000;
 
+  // opriri scurte: traseul sta langa un magazin (max 75 m) prea putin ca sa fie "oprire" de 3 min
+  // (semnal slab intre blocuri, livrare rapida). Cel putin 2 pozitii la rand langa magazin si ~50 s.
+  Object.keys(MAG).forEach(function (k) {
+    var m = MAG[k]; if (m.lat == null || k === '999' || /^B\d/.test(k)) return;
+    var q = 0;
+    while (q < p.length) {
+      if (dist(p[q], m) > RAZA_OPRIRE) { q++; continue; }
+      var e = q; while (e + 1 < p.length && dist(p[e + 1], m) <= RAZA_OPRIRE) e++;
+      if (e > q) {
+        var t0 = q > 0 ? (p[q - 1].s + p[q].s) / 2 : p[q].s, t1 = e + 1 < p.length ? (p[e].s + p[e + 1].s) / 2 : p[e].s;
+        var acoperit = opriri.some(function (op) { return t1 >= op.s0 - 60 && t0 <= op.s1 + 60; });
+        if (t1 - t0 >= SCURTA_MIN_S && !acoperit) {
+          var la = 0, lo = 0; for (var w = q; w <= e; w++) { la += p[w].lat; lo += p[w].lon; }
+          var c = { lat: la / (e - q + 1), lon: lo / (e - q + 1) };
+          opriri.push({ lat: c.lat, lon: c.lon, s0: t0, s1: t1, sosire: data + ' ' + hmsS(t0), min: Math.max(1, Math.round((t1 - t0) / 60)), scurta: true,
+                        mag: { cod: m.cod, nume: m.nume, lat: m.lat, lon: m.lon, zona: m.zona, dm: Math.round(dist(c, m)) }, vizite: [] });
+        }
+      }
+      q = e + 1;
+    }
+  });
+  opriri.sort(function (x, y) { return x.s0 - y.s0; });
+
   // vizitele, legate de oprirea in care au fost marcate
   var vizite = [], puncte = [];
   ev.forEach(function (e) {
@@ -247,9 +270,10 @@ function analizeaza(a, data, st, acum) {
            puncte: puncte, pts: pts, ultima: ultimaPoz, minUltima: ultimaPoz ? Math.round((sec(acum) - ultimaPoz.s) / 60) : null };
 }
 
-var RAZA_OPRIRE = 300;   // o oprire la cel mult 300 m de un magazin e pusa pe seama lui (GPS-ul si coordonatele magazinelor nu sunt exacte)
+var RAZA_OPRIRE = 75;    // o oprire e pusa pe seama unui magazin doar la cel mult 75 m de el (nimeni nu cara marfa mai departe)
+var SCURTA_MIN_S = 50;    // oprire scurta: cel putin 2 pozitii la max 75 m de magazin si cam 50 s petrecute acolo
 function celMaiAproape(c, raza) {
-  raza = Math.max(raza || 0, RAZA_OPRIRE);
+  raza = RAZA_OPRIRE;
   var best = null, bd = raza;
   Object.keys(MAG).forEach(function (k) {
     var m = MAG[k]; if (k === '999' || m.lat == null) return;
@@ -289,6 +313,7 @@ function editeazaNota(idx, cheie) {
     }).catch(function (e) { toast('Nu s-a salvat (' + e.message + ')'); });
 }
 function oririFaraVizita(r) { return r.opriri.filter(function (op) { return !op.vizite.length && !(op.mag && op.mag.cod === '999'); }); }
+function hmsS(s) { var d = new Date(s * 1000); return p2(d.getHours()) + ':' + p2(d.getMinutes()) + ':' + p2(d.getSeconds()); }
 function hmS(s) { var d = new Date(s * 1000); return p2(d.getHours()) + ':' + p2(d.getMinutes()); }
 function linkG(lat, lon) { return 'https://www.google.com/maps/search/?api=1&query=' + lat.toFixed(6) + ',' + lon.toFixed(6); }
 function ziRo(z) { var p = String(z).split('-'); return p[2] + '.' + p[1] + '.' + p[0]; }
@@ -304,7 +329,7 @@ function randuriZi(r, agent) {
       out.push({ s: k ? v.s : op.s0, nr: String(v.nr), tip: 'Vizita', ora: k ? hm(v.e.ora) : ora, min: k ? '' : op.min, cod: v.e.cod, magazin: v.mag ? v.mag.nume : '', status: v.st.eticheta, nota: (v.st.rest || '') + (k ? ' (marcat din nou)' : ''), link: linkG(op.lat, op.lon) });
     });
     else if (op.mag && op.mag.cod === '999') out.push({ s: op.s0, tip: 'Depozit', ora: ora, min: op.min, cod: '999', magazin: 'Depozit Jilava', link: linkG(op.lat, op.lon) });
-    else out.push({ s: op.s0, nr: 'O' + op.nr, tip: 'Oprire fara vizita', ora: ora, min: op.min, cod: op.mag ? op.mag.cod : '', magazin: op.mag ? 'langa ' + op.mag.nume + ' (la ' + op.mag.dm + ' m)' : 'in afara magazinelor', nota: NOTE[agentCurent + '|' + cheieOpr(op)] || '', link: linkG(op.lat, op.lon) });
+    else out.push({ s: op.s0, nr: 'O' + op.nr, tip: 'Oprire fara vizita', ora: ora, min: op.min, cod: op.mag ? op.mag.cod : '', magazin: op.mag ? (op.scurta ? 'posibila oprire scurta, ' : '') + 'langa ' + op.mag.nume + ' (la ' + op.mag.dm + ' m)' : 'in afara magazinelor', nota: NOTE[agentCurent + '|' + cheieOpr(op)] || '', link: linkG(op.lat, op.lon) });
   });
   r.vizite.forEach(function (v) {
     if (v.opr) return;
@@ -457,7 +482,7 @@ function cardAgent(a, r, c, d) {
     } else if (op.mag && op.mag.cod === '999') {
       rand.push({ s: op.s0, html: oraInterval + '<span class="d">Depozit Jilava <span class="x">(' + op.min + ' min)</span></span>' });
     } else if (op.mag) {
-      rand.push({ s: op.s0, html: oraInterval + '<span class="d"><span class="nrj" style="background:#f59e0b">O' + op.nr + '</span><span class="warn">Oprire nemarcata</span> langa <b>' + esc(op.mag.cod + ' ' + op.mag.nume) + '</b> <span class="x">(' + op.min + ' min, la ' + op.mag.dm + ' m)</span>' + blocNota(idx, a, op) + '</span>' });
+      rand.push({ s: op.s0, html: oraInterval + '<span class="d"><span class="nrj" style="background:#f59e0b">O' + op.nr + '</span><span class="warn">' + (op.scurta ? 'Posibila oprire scurta' : 'Oprire nemarcata') + '</span> langa <b>' + esc(op.mag.cod + ' ' + op.mag.nume) + '</b> <span class="x">(' + op.min + ' min, la ' + op.mag.dm + ' m)</span>' + blocNota(idx, a, op) + '</span>' });
     } else {
       rand.push({ s: op.s0, html: oraInterval + '<span class="d"><span class="nrj" style="background:#9ca3af">O' + op.nr + '</span>Oprire in afara magazinelor <span class="x">(' + op.min + ' min)</span> <a target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=' + op.lat + ',' + op.lon + '">harta</a>' + blocNota(idx, a, op) + '</span>' });
     }
