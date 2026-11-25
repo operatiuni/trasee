@@ -67,9 +67,11 @@
   #hartaBara .principal { background: #1560bd; color: #fff; border-color: #1560bd; }
   .pinM { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; background: #1a1a2e; box-shadow: 0 1px 4px rgba(0,0,0,.45); }
   .pinM.facut { background: #1d7a46; } .pinM.retur { background: #cf6b12; } .pinM.nuvrea { background: #b3261e; }
+  .pinM.profi { background: #0057b8; border-radius: 4px; }
   .pinM.inchis { background: #5c5c70; } .pinM.altceva { background: #6a3d9a; } .pinM.oprit { background: #b0b0bc; }
   .tipPunct.ales { background: #6a3d9a; color: #fff; }
   /* capacitate si produse */
+  .cap.profi { background: #0057b8; }
   .cap { display: inline-block; min-width: 34px; text-align: center; background: #1a1a2e; color: #fff; border-radius: 8px; padding: 3px 7px; font-size: 13px; font-weight: 800; flex-shrink: 0; }
   #stProduse { margin-top: 10px; }
   #stProduse table { width: 100%; border-collapse: collapse; }
@@ -242,7 +244,7 @@ function inTura() { return APP ? APP.esteInTura() : !!tura(); }
 
 // ---------------- Pornire ----------------
 function init() {
-  if (APP && APP.versiuneAplicatie) $('stVer').textContent = 'app ' + APP.versiuneAplicatie() + ' / pagina 1.5';
+  if (APP && APP.versiuneAplicatie) $('stVer').textContent = 'app ' + APP.versiuneAplicatie() + ' / pagina 1.6';
   if (!agent()) { comuta('ecranNume'); $('numeAgent').value = ''; }
   else afiseaza();
   incarcaZona();
@@ -262,8 +264,35 @@ function incarcaZona() {
   fetch('zone.json?t=' + Date.now()).then(function (r) { return r.json(); }).then(function (d) {
     zona = d.zone[ZONA];
     if (!zona) { banner('rau', 'Zona ' + ZONA + ' nu exista in zone.json'); return; }
+    zona.profi = profiInZona(citeste('to_profi', []));
     afiseaza();
+    incarcaProfi();
   }).catch(function () { banner('rau', 'Nu pot incarca lista de magazine. Verifica internetul.'); });
+}
+// Magazinele Profi din jurul zonei (din foaia Stores de pe server), ca agentul sa le poata marca
+function profiInZona(lista) {
+  if (!zona) return [];
+  var a = zona.active.filter(function (s) { return s.lat; });
+  if (!a.length) return [];
+  var la0 = 90, la1 = -90, lo0 = 180, lo1 = -180;
+  a.forEach(function (s) { la0 = Math.min(la0, s.lat); la1 = Math.max(la1, s.lat); lo0 = Math.min(lo0, s.lon); lo1 = Math.max(lo1, s.lon); });
+  var m = 0.03;   // ~3 km in jurul zonei
+  return lista.filter(function (r) { return r[2] >= la0 - m && r[2] <= la1 + m && r[3] >= lo0 - m && r[3] <= lo1 + m; })
+    .map(function (r) { return { cod: String(r[0]), nume: r[1], lat: r[2], lon: r[3], med: null, prod: [], profi: true }; });
+}
+function incarcaProfi() {
+  fetch(SERVER_URL + '?action=magazine_profi&key=' + API_KEY + '&t=' + Date.now()).then(function (r) { return r.json(); }).then(function (d) {
+    if (!d.ok || !d.magazine) return;
+    scrie('to_profi', d.magazine);
+    zona.profi = profiInZona(d.magazine);
+    afiseaza();
+  }).catch(function () {});
+}
+function toateMag() {
+  if (!zona) return [];
+  return zona.active.map(function (s) { return { s: s, oprit: false }; })
+    .concat((zona.profi || []).map(function (s) { return { s: s, oprit: false }; }))
+    .concat(zona.standby.map(function (s) { return { s: s, oprit: true }; }));
 }
 window.laRevenire = function () { afiseaza(); trimiteCoada(); };
 window.dupaPermisiuni = function () { afiseaza(); };
@@ -332,8 +361,7 @@ function textDist(m) { return m == null ? '' : (m < 1000 ? Math.round(m) + ' m' 
 function deseneazaLista() {
   if (!zona) { $('lista').innerHTML = '<div class="card">Se incarca magazinele...</div>'; return; }
   var f = $('cauta').value.toLowerCase(), p = pozitieCurenta(), viz = vizite();
-  var toate = zona.active.map(function (s) { return { s: s, oprit: false }; })
-    .concat(zona.standby.map(function (s) { return { s: s, oprit: true }; }));
+  var toate = toateMag();
   toate.forEach(function (o) { o.d = (p && o.s.lat) ? distM(p.lat, p.lon, o.s.lat, o.s.lon) : null; });
   toate.sort(function (a, b) {
     if (a.oprit !== b.oprit) return a.oprit ? 1 : -1;
@@ -355,8 +383,8 @@ function deseneazaLista() {
     if (v) facute++;
     if (f && (s.nume + ' ' + s.cod).toLowerCase().indexOf(f) < 0) return;
     html += '<div class="mag' + (v ? ' facut' : '') + (o.oprit ? ' oprit' : '') + '" onclick="deschideStatusCod(\'' + esc(s.cod) + '\')">' +
-      '<span class="cap" title="capacitate medie">' + (s.med != null ? esc(s.med) : '-') + '</span>' +
-      '<div class="info"><div class="nume">' + esc(s.nume) + '</div><div class="det">cod ' + esc(s.cod) +
+      (s.profi ? '<span class="cap profi" title="magazin Profi">P</span>' : '<span class="cap" title="capacitate medie">' + (s.med != null ? esc(s.med) : '-') + '</span>') +
+      '<div class="info"><div class="nume">' + esc(s.nume) + '</div><div class="det">cod ' + esc(s.cod) + (s.profi ? ' · Profi' : '') +
       (o.oprit ? ' · nu se livreaza' : '') + (s.lat ? '' : ' · fara GPS') + '</div></div>' +
       (v ? '<span class="stare st-' + v.st + '">' + ETICHETE[v.st] + ' ' + ora(v.t) + '</span>' : '<span class="dist">' + textDist(o.d) + '</span>') +
       (s.lat ? '<button class="waze" onclick="event.stopPropagation(); waze(\'' + esc(s.cod) + '\')">Waze</button>' : '') + '</div>';
@@ -368,8 +396,8 @@ function deseneazaLista() {
 
 function gasesteMag(cod) {
   if (!zona) return null;
-  var t = zona.active.concat(zona.standby);
-  for (var i = 0; i < t.length; i++) if (String(t[i].cod) === String(cod)) return t[i];
+  var t = toateMag();
+  for (var i = 0; i < t.length; i++) if (String(t[i].s.cod) === String(cod)) return t[i].s;
   return null;
 }
 function waze(cod) {
@@ -414,13 +442,12 @@ function comutaHarta() {
 
 function deseneazaPinii(viz) {
   if (!harta || !zona) return;
-  var toate = zona.active.map(function (s) { return { s: s, oprit: false }; })
-    .concat(zona.standby.map(function (s) { return { s: s, oprit: true }; }));
+  var toate = toateMag();
   toate.forEach(function (o) {
     var s = o.s; if (!s.lat || !s.lon) return;
-    var v = viz[s.cod], cls = v ? (v.st === 'fost' ? 'facut' : v.st) : (o.oprit ? 'oprit' : '');
+    var v = viz[s.cod], cls = v ? (v.st === 'fost' ? 'facut' : v.st) : (o.oprit ? 'oprit' : (s.profi ? 'profi' : ''));
     // marimea bulinei dupa capacitatea medie (ca pe pagina de zona)
-    var d = Math.round(2 * Math.max(6, Math.min(15, 4 + Math.sqrt(s.med || 0))));
+    var d = s.profi ? 16 : Math.round(2 * Math.max(6, Math.min(15, 4 + Math.sqrt(s.med || 0))));
     var ic = L.divIcon({ className: '', html: '<div class="pinM ' + cls + '" style="width:' + d + 'px;height:' + d + 'px"></div>',
       iconSize: [d, d], iconAnchor: [d / 2, d / 2] });
     if (!pinMag[s.cod]) {
@@ -536,9 +563,9 @@ function deschideStatus(s) {
     (v ? ' · marcat deja: ' + ETICHETE[v.st] + ' la ' + ora(v.t) : '');
   $('stNavigare').classList.toggle('ascuns', !s.lat);
   var prod = s.prod || [];
-  $('stProduse').innerHTML = (s.med != null ? '<p class="eticheta">Capacitate medie: <b style="color:#1a1a2e">' + esc(s.med) + '</b> · produse principale</p>' : '') +
+  $('stProduse').innerHTML = s.profi ? '<p class="fara">Magazin Profi.</p>' : ((s.med != null ? '<p class="eticheta">Capacitate medie: <b style="color:#1a1a2e">' + esc(s.med) + '</b> · produse principale</p>' : '') +
     (prod.length ? '<table>' + prod.map(function (p) { return '<tr><td>' + esc(p[0]) + '</td><td>' + esc(p[1]) + '</td></tr>'; }).join('') + '</table>'
-                 : '<p class="fara">Fara istoric de produse.</p>');
+                 : '<p class="fara">Fara istoric de produse.</p>'));
   $('zonaAltceva').classList.add('ascuns');
   $('notaAltceva').value = ''; $('eroareAltceva').textContent = '';
   $('dlgStatus').showModal();
